@@ -35,3 +35,6 @@ html[data-theme="dark"] .art-car:after{border-color:var(--paper);background:#9bc
 html[data-theme="dark"] .dealer-icon,html[data-theme="dark"] .avatar,html[data-theme="dark"] .lookup-icon,html[data-theme="dark"] .car-badge{background:#26382e;color:#8ce0b9}
 html[data-theme="dark"] .theme-toggle{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:10px}
 html[data-theme="dark"] .theme-toggle:hover,html[data-theme="dark"] .help-button:hover,html[data-theme="dark"] .copy-button:hover,html[data-theme="dark"] .path-card button:hover{background:#2a3931}
+
+.theme-toggle{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:7px;padding:5px 8px;background:var(--paper);color:var(--ink);font-size:10px}
+@media(max-width:760px){.theme-toggle{font-size:11px}.theme-toggle-label{display:none}}
