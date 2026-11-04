@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>Service Lane Copilot</title>
+  <rect width="64" height="64" rx="15" fill="#10283F" />
+  <path
+    d="M17 36.5 20.3 26a5 5 0 0 1 4.8-3.5h13.8a5 5 0 0 1 4.8 3.5L47 36.5v11a2.5 2.5 0 0 1-2.5 2.5H19.5a2.5 2.5 0 0 1-2.5-2.5v-11Z"
+    fill="#F4F8FA"
+  />
+  <path d="m22 33 2.3-7.2a1.7 1.7 0 0 1 1.6-1.2h10.6a1.7 1.7 0 0 1 1.6 1.2l2.3 7.2H22Z" fill="#20B8AA" />
+  <path d="M17 37h30" stroke="#10283F" stroke-width="2.5" />
+  <rect x="19.5" y="40" width="8" height="4" rx="2" fill="#20B8AA" />
+  <rect x="36.5" y="40" width="8" height="4" rx="2" fill="#20B8AA" />
+  <path d="M20 50v2m24-2v2" stroke="#F4F8FA" stroke-width="3" stroke-linecap="round" />
+</svg>
+
