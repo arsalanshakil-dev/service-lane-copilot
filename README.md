@@ -49,6 +49,7 @@ service-lane-copilot/
     ├── package.json                  # Frontend scripts and dependencies
     ├── next.config.ts                # Backend API rewrite
     └── app/
+        ├── icon.svg                 # Browser-tab favicon
         ├── page.tsx                  # Main advisor screen
         ├── layout.tsx                # App shell and metadata
         └── globals.css               # Global styles
@@ -77,6 +78,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/.env.local.example` | Example backend URL setting for local development. |
 | `frontend/app/page.tsx` | Main advisor lookup and service-history screen. |
 | `frontend/app/layout.tsx` | Shared page shell and document metadata. |
+| `frontend/app/icon.svg` | Service Lane Copilot favicon for browser tabs. |
 | `frontend/app/globals.css` | App-wide styles. |
 | `frontend/tsconfig.json` | TypeScript compiler configuration used by Next.js. |
 | `frontend/next-env.d.ts` | Next.js generated TypeScript environment declarations. |
@@ -148,4 +150,5 @@ Direct runtime versions are pinned in `frontend/package.json` and `backend/requi
 `NS-2048`, `NS-7316`, `NS-5192`, `NS-8840`, `NS-4402`, `NS-1026`, `NS-6621`, `NS-3574`, `NS-9031`, `NS-2258`, and generated examples `DEMO-0011` through `DEMO-0250`.
 
 The sample scenarios include due and coming-up items, no matching recommendation, missing mileage, stale mileage, conflicting mileage, safety verification prompts, and unknown serial numbers. Unknown or incomplete records offer editable drafts only. Nothing is sent or submitted.
+
 
