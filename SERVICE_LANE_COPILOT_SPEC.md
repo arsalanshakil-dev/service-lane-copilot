@@ -76,6 +76,13 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Safety-related items receive a prominent verification label and are not presented as a diagnosis or confirmed defect.
 - The interface labels the schedule and records as synthetic demonstration data.
 
+### Display theme
+
+- The frontend provides an accessible control to toggle between light and dark themes.
+- Light theme is the default when no preference has been saved. The advisor's explicit selection is stored in that browser and restored before the app is displayed where practical.
+- The selected theme applies consistently to the navigation, lookup and welcome screens, vehicle/service history, recommendation cards, drafts, empty states, and form controls.
+- Theme preference is presentation-only. It does not change recommendations, stored vehicle data, or backend behavior.
+
 ### Drafts and approvals
 
 - Customer explanations, quote text, follow-ups, vehicle-registration requests, and external-history requests are drafts only.
@@ -112,6 +119,7 @@ Before calling the MVP ready, automate these behaviors where practical and recor
 7. Explanations and quotes do not add facts absent from the vehicle record or configured demo rules.
 8. MCP tool/resource discovery works over stdio and Streamable HTTP; unknown serials return an explicit no-record result.
 9. MCP draft tools return unsent drafts and expose no side-effecting operation.
+10. The theme control switches between light and dark, the selected theme is restored on reload, and primary content and controls remain legible in both themes.
 
 Review the code changes and evidence for each check before accepting them. A check that was not run is **unverified**, not passed. The existing verification plan defines expected behavior; it is not evidence that implementation has already passed.
 
