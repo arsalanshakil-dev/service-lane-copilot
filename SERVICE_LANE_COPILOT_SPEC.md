@@ -58,6 +58,10 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 
 ## Requirements
 
+### App identity
+
+- The browser tab displays a recognizable Service Lane Copilot icon using the Next.js App Router icon convention.
+
 ### Vehicle record and lookup
 
 - A serial-number lookup returns either one matching synthetic vehicle or a clear no-match result.
@@ -173,6 +177,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - `MEMORY.md` records verified implementation facts and current gaps; it does not override this spec.
 - `docs/feature-spec-template.md` is the template for distinct features.
 - `frontend/app/` contains the Next.js page and styles.
+- `frontend/app/icon.svg` is the browser-tab favicon.
 - `frontend/next.config.ts` proxies browser API calls to FastAPI.
 - `backend/app/main.py` implements the REST API and mounts the MCP HTTP endpoint.
 - `backend/app/mcp_server.py` defines MCP tools/resources and the stdio entry point.
@@ -181,3 +186,4 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - `backend/requirements.txt` pins Python and MCP dependencies.
 - `data/vehicles.json` stores the 250 vehicle records separately from the interface and API code.
 - `README.md` explains setup, local run commands, and sample vehicle scenarios.
+
