@@ -1,0 +1,9 @@
+frontend/node_modules/
+frontend/.next/
+frontend/*.tsbuildinfo
+backend/.venv/
+backend/__pycache__/
+backend/app/__pycache__/
+*.py[cod]
+.env
+.env.local

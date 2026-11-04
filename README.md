@@ -149,4 +149,3 @@ Direct runtime versions are pinned in `frontend/package.json` and `backend/requi
 
 The sample scenarios include due and coming-up items, no matching recommendation, missing mileage, stale mileage, conflicting mileage, safety verification prompts, and unknown serial numbers. Unknown or incomplete records offer editable drafts only. Nothing is sent or submitted.
 
-

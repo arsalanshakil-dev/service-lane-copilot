@@ -1,0 +1,4 @@
+https://www.litellm.ai/
+SLMs from https://huggingface.co/
+https://github.com/browser-use/jev-ultrafast
+https://aidhd.co/
