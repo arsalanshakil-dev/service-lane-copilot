@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import ChatPanel from "./chat-panel";
 
 type Recommendation = {
   name: string;
@@ -246,6 +247,7 @@ export default function Home() {
 
         <footer id="demo-note" className="page-footer"><span>ⓘ</span> Demo only: synthetic vehicle records and example maintenance rules. Verify any safety-related item against an approved source.</footer>
       </main>
+      <ChatPanel />
       {toast && <div className="toast show" role="status">{toast}</div>}
     </div>
   );

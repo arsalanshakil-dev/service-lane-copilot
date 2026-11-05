@@ -68,16 +68,6 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Synthetic vehicle records include serial number, make/model/year, recorded odometer mileage and timestamp, service events, and any missing-data indicators.
 - No match, missing mileage, conflicting mileage, or sparse history must be shown as a data limitation; the app must not silently fill gaps.
 
-### Manual mileage updates
-
-- When a known synthetic record has no current mileage, an advisor can enter a non-negative integer mileage, reading date, and source (advisor-observed or customer-reported).
-- A successful update replaces the record's current mileage and stores the ISO date and source in the local synthetic dataset. A later lookup returns the updated value and provenance.
-- The local REST API exposes this update. MCP tools and resources remain read-only.
-- Unknown serial numbers and invalid values do not change the dataset.
-- If the reading conflicts with a recorded service mileage, retain the entered reading with an explicit conflict flag and pause recommendations.
-- A manual current reading does not fill missing mileage in service history. Recommendations remain paused when history lacks evidence needed to support them; the app must explain why and must not infer intervals.
-- This behavior is specified in `docs/feature-spec-manual-mileage.md`.
-
 ### Recommendations
 
 - Recommendation examples and due/coming-up labels are explicit structured data in the synthetic JSON records, not a language model’s guess.
@@ -86,12 +76,14 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Safety-related items receive a prominent verification label and are not presented as a diagnosis or confirmed defect.
 - The interface labels the schedule and records as synthetic demonstration data.
 
-### Display theme
+### In-app Ollama agent
 
-- The frontend provides an accessible control to toggle between light and dark themes.
-- Light theme is the default when no preference has been saved. The advisor's explicit selection is stored in that browser and restored before the app is displayed where practical.
-- The selected theme applies consistently to the navigation, lookup and welcome screens, vehicle/service history, recommendation cards, drafts, empty states, and form controls.
-- Theme preference is presentation-only. It does not change recommendations, stored vehicle data, or backend behavior.
+- The web app includes a chat assistant that can use every tool and resource registered by the existing MCP server, including fixed resources and resource templates.
+- The chat model is selected from models installed on the local Ollama service. Model discovery and inference use only `http://127.0.0.1:11434`; no cloud fallback or remote model URL is allowed.
+- The assistant may retrieve synthetic data and prepare drafts through existing MCP capabilities. It cannot write records, send messages, submit requests, book appointments, control a vehicle, or access an outside system.
+- Vehicle facts, recommendation evidence, and safety status must be grounded in MCP tool/resource output. Incomplete or conflicting data remains uncertain. The model cannot decide maintenance intervals.
+- Conversation history is kept in browser memory only.
+- See `docs/feature-spec-local-ollama-chat.md`.
 
 ### Drafts and approvals
 
@@ -106,6 +98,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Show the evidence and rule behind every suggested service so the advisor can check it.
 - Treat missing, stale, or contradictory records as uncertainty that requires advisor follow-up.
 - Keep all customer-facing or external actions behind advisor review.
+- The in-app assistant uses only local Ollama inference and the project's own MCP server. No chat message is sent to a hosted model or external service.
 
 ## Out of scope
 
@@ -129,10 +122,11 @@ Before calling the MVP ready, automate these behaviors where practical and recor
 7. Explanations and quotes do not add facts absent from the vehicle record or configured demo rules.
 8. MCP tool/resource discovery works over stdio and Streamable HTTP; unknown serials return an explicit no-record result.
 9. MCP draft tools return unsent drafts and expose no side-effecting operation.
-10. A known record with missing current mileage accepts a valid manual update and returns the replacement mileage, date, and source on a subsequent lookup.
-11. Unknown records and invalid manual mileage payloads do not modify the dataset; a value below recorded service mileage is flagged as a conflict.
-12. Incomplete service-history mileage remains missing after a manual current-mileage update and recommendations stay paused without evidence.
-13. MCP remains read-only after the REST mileage update is added.
+10. The chat discovers and calls all registered MCP tools and can read fixed and templated MCP resources.
+11. The in-app assistant sends inference only to the local Ollama service and has no hosted-model fallback.
+12. Multi-step search/retrieve/draft tasks use MCP results; unknown or incomplete records remain explicit and uncertain.
+13. Ollama unavailable, no installed model, invalid tool, and MCP tool failure produce clear errors without making external calls.
+14. Chat cannot send drafts, write a vehicle record, book service, or control a vehicle; history is not persisted server-side.
 
 Review the code changes and evidence for each check before accepting them. A check that was not run is **unverified**, not passed. The existing verification plan defines expected behavior; it is not evidence that implementation has already passed.
 
@@ -194,15 +188,17 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 
 ## Project files
 
-- `docs/feature-spec-manual-mileage.md` defines manual mileage entry and its evidence/safety boundaries.
 - `AGENTS.md` defines the required spec-first process and safety rules for coding agents.
 - `MEMORY.md` records verified implementation facts and current gaps; it does not override this spec.
 - `docs/feature-spec-template.md` is the template for distinct features.
+- `docs/feature-spec-local-ollama-chat.md` defines the in-app assistant, local-only Ollama boundary, and full MCP capability access.
 - `frontend/app/` contains the Next.js page and styles.
 - `frontend/app/icon.svg` is the browser-tab favicon.
 - `frontend/next.config.ts` proxies browser API calls to FastAPI.
 - `backend/app/main.py` implements the REST API and mounts the MCP HTTP endpoint.
 - `backend/app/mcp_server.py` defines MCP tools/resources and the stdio entry point.
+- `backend/app/local_agent.py` discovers local Ollama models and runs a bounded tool loop through the MCP server.
+- `frontend/app/chat-panel.tsx` provides the advisor-facing local agent chat.
 - `backend/mcp_stdio.py` is the local stdio launcher for MCP hosts.
 - `backend/app/data_store.py` loads shared synthetic data.
 - `backend/requirements.txt` pins Python and MCP dependencies.

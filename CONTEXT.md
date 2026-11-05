@@ -12,7 +12,7 @@ The demo uses 250 fictional vehicle records. It is not a production maintenance 
 - **Backend:** Python, FastAPI, and MCP in `backend/`.
 - **Data:** `data/vehicles.json` is the synthetic dataset shared by REST and MCP.
 - **REST overview:** FastAPI Swagger UI is at `/docs`; OpenAPI JSON is at `/openapi.json`.
-- **Agent access:** MCP is available over local Streamable HTTP and stdio.
+- **Agent access:** MCP is available over local Streamable HTTP and stdio. The web app also includes a chat assistant that uses the same MCP tools/resources through Ollama at `127.0.0.1:11434` only.
 
 ## Main advisor workflow
 
@@ -20,7 +20,8 @@ The demo uses 250 fictional vehicle records. It is not a production maintenance 
 2. Review the matching synthetic vehicle, mileage, history, data timing, and limitations.
 3. Review explicitly stored due or coming-up examples with their record evidence and demo rule.
 4. Prepare and edit customer explanations, quote text, follow-ups, or record/history request drafts.
-5. The advisor decides what to do with each draft; the app does not send or submit it.
+5. The advisor can use the same lookup, evidence, and draft capabilities through the in-app local assistant.
+6. The advisor decides what to do with each draft; the app does not send or submit it.
 
 No match or incomplete, stale, or contradictory data must remain visible as uncertainty. The app must not fill gaps or present an unsupported service as necessary. Safety-related items are prompts for advisor verification, not diagnoses.
 
@@ -28,7 +29,7 @@ No match or incomplete, stale, or contradictory data must remain visible as unce
 
 - Use synthetic data only. Never add real customer, vehicle, or dealership records, credentials, or secrets.
 - Drafts are text only. Do not send messages, submit requests, book appointments, modify records, or contact external services.
-- MCP operations remain read-only apart from returning draft text; they do not persist changes.
+- MCP operations remain read-only apart from returning draft text; they do not persist changes. The chat uses only installed local Ollama models, and chat history is not stored by the backend.
 - OBD-II/CAN, live dealership systems, external history providers, real maintenance schedules, and production deployment are out of scope for this demo. Future OBD-II work must be separately specified and read-only.
 - Do not invent prices, vehicle details, maintenance intervals, or history.
 
