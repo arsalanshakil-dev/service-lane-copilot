@@ -5,3 +5,15 @@
 .status.neutral{background:#f2f4f3;color:#77827c}
 .lookup-hint{flex-wrap:wrap}
 .record-paths{margin:10px 0 13px}
+
+.manual-mileage{margin:14px 0;padding:14px;border:1px solid #dfe9e2;border-radius:9px;background:#f7faf8}
+.manual-mileage h3{font:700 11px Manrope,sans-serif;margin:0 0 4px;color:#34463b}
+.manual-mileage>div>p,.manual-mileage-note{font-size:9px;color:#718078;line-height:1.5;margin:0 0 10px}
+.manual-mileage-form{display:grid;grid-template-columns:1.1fr 1fr 1fr auto;align-items:end;gap:9px}
+.manual-mileage-form label{display:flex;flex-direction:column;gap:5px;font-size:9px;font-weight:700;color:#66766c}
+.manual-mileage-form input,.manual-mileage-form select{height:35px;width:100%;border:1px solid #d8e1db;border-radius:6px;background:#fff;color:#33413a;padding:0 9px;font-size:10px}
+.manual-mileage-form input:focus,.manual-mileage-form select:focus{outline:2px solid #d9eee2;border-color:#65a88d}
+.manual-mileage-submit{height:35px;font-size:10px;padding:0 11px;white-space:nowrap}
+.manual-mileage-note{margin:9px 0 0}
+@media(max-width:900px){.manual-mileage-form{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.manual-mileage-form{grid-template-columns:1fr}.manual-mileage-submit{width:100%;justify-content:center}}
