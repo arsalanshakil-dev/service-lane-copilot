@@ -12,18 +12,21 @@ An OBD-II/CAN adapter is a planned optional source for a later connected version
 
 ```mermaid
 flowchart LR
-    Advisor[Service advisor] -->|serial number, review, edit drafts| Web[Next.js web app\nfrontend/app]
-    Web -->|/api/copilot/* rewrite| API[FastAPI REST API\nbackend/app/main.py]
-    API --> Store[Shared read-only data loader\nbackend/app/data_store.py]
+    Advisor[Service advisor] -->|serial number, review, edit drafts| Web[Next.js web app and chat\nfrontend/app]
+    Web -->|/api/copilot/* rewrite| API[FastAPI REST and chat API\nbackend/app/main.py]
+    API --> Store[Shared synthetic data loader\nbackend/app/data_store.py]
     Store --> Data[(250 synthetic records\ndata/vehicles.json)]
+    API --> Agent[Local agent loop\nbackend/app/local_agent.py]
+    Agent -->|HTTP loopback only · /api/chat| Ollama[Local Ollama\n127.0.0.1:11434]
+    Agent -->|in-process MCP client| MCP
     Harness[MCP-compatible agent harness] -->|Streamable HTTP /mcp| MCP[MCP server\nbackend/app/mcp_server.py]
     Harness -->|stdio| Launcher[backend/mcp_stdio.py]
     Launcher --> MCP
-    MCP --> Store
+    MCP -->|read-only| Store
     API -->|Swagger /docs · OpenAPI /openapi.json| Docs[Backend API docs]
 ```
 
-The web app and MCP server use the same synthetic data loader. Recommendations are explicit demo data with visible history evidence. Drafts are returned for advisor review only; the app does not send, submit, or persist them.
+The web app chat uses only local Ollama and calls the same registered MCP server in-process. The MCP tools and resources use the shared synthetic dataset. Recommendations are explicit demo data with visible history evidence. Drafts are returned for advisor review only; the app does not send or submit them.
 
 ## Folder structure
 
@@ -37,12 +40,14 @@ service-lane-copilot/
 ├── data/
 │   └── vehicles.json                 # 250 synthetic vehicle/history records
 ├── docs/
-│   └── feature-spec-template.md      # Template for a new feature spec
+│   ├── feature-spec-template.md      # Template for a new feature spec
+│   └── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
 ├── backend/
 │   ├── requirements.txt              # Pinned Python dependencies
 │   ├── mcp_stdio.py                  # Local stdio MCP launcher
 │   └── app/
-│       ├── main.py                   # REST routes and HTTP MCP mount
+│       ├── main.py                   # REST, local chat routes, and HTTP MCP mount
+│       ├── local_agent.py            # Local Ollama and MCP tool orchestration
 │       ├── mcp_server.py             # MCP tools and resources
 │       └── data_store.py             # Shared read-only data loader
 └── frontend/
@@ -51,6 +56,7 @@ service-lane-copilot/
     └── app/
         ├── icon.svg                 # Browser-tab favicon
         ├── page.tsx                  # Main advisor screen
+        ├── chat-panel.tsx             # Advisor chat using local Ollama and MCP
         ├── layout.tsx                # App shell and metadata
         └── globals.css               # Global styles
 ```
@@ -65,19 +71,22 @@ The tree shows the main source files and intentionally omits generated folders s
 | `CONTEXT.md` | Short onboarding explanation of the project and links to the authoritative docs. |
 | `MEMORY.md` | Verified architecture, local run commands, current implementation status, and known gaps. |
 | `SERVICE_LANE_COPILOT_SPEC.md` | Product requirements, boundaries, acceptance criteria, and the verification plan. |
+| `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |
 | `README.md` | Setup instructions, architecture diagram, folder tree, file guide, endpoints, and sample serial numbers. |
 | `data/vehicles.json` | The 250 fictional vehicle records, service histories, and explicit demo recommendation examples used by the app. |
 | `backend/requirements.txt` | Pinned Python packages for FastAPI, Uvicorn, and MCP. |
 | `backend/mcp_stdio.py` | Entry point for MCP clients that start the server as a local subprocess. |
-| `backend/app/main.py` | FastAPI application, REST endpoints, and mounted Streamable HTTP MCP endpoint. |
-| `backend/app/mcp_server.py` | MCP server setup, read-only tools, resources, and draft responses. |
+| `backend/app/main.py` | FastAPI application, REST and local-chat endpoints, and mounted Streamable HTTP MCP endpoint. |
+| `backend/app/mcp_server.py` | MCP server setup, read-only tools, resources, and draft responses exposed to both harnesses and in-app chat. |
+| `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions. |
 | `backend/app/data_store.py` | Shared loader and validation for the synthetic JSON records. |
 | `frontend/package.json` | Frontend scripts and pinned direct dependencies. |
 | `frontend/package-lock.json` | Exact resolved frontend dependency versions for repeatable npm installs. |
 | `frontend/next.config.ts` | Rewrite from browser `/api/copilot/*` requests to the local FastAPI `/api/*` routes. |
 | `frontend/.env.local.example` | Example backend URL setting for local development. |
-| `frontend/app/page.tsx` | Main advisor lookup and service-history screen. |
+| `frontend/app/page.tsx` | Main advisor lookup and service-history screen with the local chat panel mounted. |
 | `frontend/app/layout.tsx` | Shared page shell and document metadata. |
+| `frontend/app/chat-panel.tsx` | In-app assistant conversation, local model selection, and MCP tool usage display. |
 | `frontend/app/icon.svg` | Service Lane Copilot favicon for browser tabs. |
 | `frontend/app/globals.css` | App-wide styles. |
 | `frontend/tsconfig.json` | TypeScript compiler configuration used by Next.js. |
@@ -119,6 +128,12 @@ npm run dev
 ```
 
 Open `http://localhost:3000`. The Next.js rewrite proxies `/api/copilot/*` calls to the local Python API. Copy `frontend/.env.local.example` to `frontend/.env.local` and change `BACKEND_API_URL` only if the API is running at another address.
+
+### Enable in-app local chat
+
+Start the Ollama app and confirm its local API is available at `http://127.0.0.1:11434`. Run `ollama list` to see installed models, then open **Ask Copilot** and select one of them. The model storage folder (including a D: drive folder) is handled by your local Ollama installation; the app lists models available from that instance. If Ollama is stopped or has no models, vehicle lookup and the rest of the app remain available, while chat shows a setup message. The selected model must support tool calling for record lookups and MCP actions.
+
+Chat and tool results are sent only to the local Ollama service. The assistant uses every tool and resource registered by the app's MCP server. It can inspect synthetic records and return drafts, but it cannot send messages, update records, book service, access a vehicle, or use an external model/service.
 
 ## Connect an MCP-compatible agent harness
 
