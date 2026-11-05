@@ -187,11 +187,12 @@ def vehicle_resource(serial: str) -> str:
 
 @mcp_server.tool()
 def dataset_summary() -> dict[str, Any]:
-    """Report the count and source boundary of the local vehicle dataset."""
+    """Report the count and source boundary of the Supabase-backed synthetic records."""
     return {
         "synthetic_data": True,
         "record_count": len(load_vehicles()),
-        "source": "data/vehicles.json",
+        "source": "Supabase Postgres public.vehicle_records",
+        "seed_fixture": "data/vehicles.json",
         "live_vehicle_access": False,
         "live_dealership_access": False,
         "simulated_obd_telemetry_available": True,

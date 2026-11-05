@@ -5,10 +5,17 @@ from contextlib import asynccontextmanager
 from datetime import date
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from .data_store import find_vehicle, load_vehicles, search_vehicle_summaries, update_vehicle_mileage
+from .data_store import (
+    VehicleStoreUnavailableError,
+    find_vehicle,
+    load_vehicles,
+    search_vehicle_summaries,
+    update_vehicle_mileage,
+)
 from .mcp_server import mcp_server, mcp_http_app
 from .local_agent import (
     OllamaRequestError,
@@ -49,7 +56,7 @@ app = FastAPI(
     title="Service Lane Copilot API",
     version="0.1.0",
     description=(
-        "REST API and local Ollama chat over the 250-record synthetic vehicle dataset.\n\n"
+        "REST API and local Ollama chat over Supabase-backed synthetic vehicle records. The 250-record JSON file is a seed fixture only.\n\n"
         "## REST API and local chat\n"
         "Vehicle search and retrieval use synthetic records. The app chat uses only local Ollama at 127.0.0.1:11434 and the registered MCP tools/resources. "
         "Unknown serials return 404; no real dealership data is queried.\n\n"
@@ -57,7 +64,7 @@ app = FastAPI(
         "The same dataset is available to MCP-compatible agents over Streamable HTTP at `/mcp` "
         "or through the local stdio launcher. MCP draft tools never send or submit content. "
         "The MCP protocol endpoint is not an OpenAPI route; see `/api/capabilities` for its tools and resources.\n\n"
-        "All vehicle, mileage, history, and recommendation content is synthetic demo data."
+        "All vehicle, mileage, history, and recommendation content is synthetic demo data. Supabase credentials are required on the backend; the API never falls back to JSON at runtime."
     ),
     docs_url="/docs",
     redoc_url="/redoc",
@@ -76,10 +83,24 @@ app = FastAPI(
 )
 
 
+@app.exception_handler(VehicleStoreUnavailableError)
+async def vehicle_store_unavailable(_: Request, __: VehicleStoreUnavailableError) -> JSONResponse:
+    """Hide provider details and return a safe database-unavailable response."""
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Vehicle database unavailable. Check Supabase setup and try again."},
+    )
+
+
 @app.get("/api/health", tags=["Backend overview"])
 def health() -> dict[str, Any]:
-    """Return service status and loaded synthetic record count."""
-    return {"status": "ok", "synthetic_data": True, "record_count": len(load_vehicles())}
+    """Return service status and Supabase-backed synthetic record count."""
+    return {
+        "status": "ok",
+        "database": "supabase",
+        "synthetic_data": True,
+        "record_count": len(load_vehicles()),
+    }
 
 
 @app.get(
@@ -92,6 +113,12 @@ def capabilities() -> dict[str, Any]:
     return {
         "synthetic_data": True,
         "record_count": len(load_vehicles()),
+        "database": {
+            "provider": "Supabase Postgres",
+            "source_of_truth": "vehicle_records",
+            "seed_fixture": "data/vehicles.json",
+            "runtime_json_fallback": False,
+        },
         "rest": {
             "docs": "/docs",
             "openapi": "/openapi.json",

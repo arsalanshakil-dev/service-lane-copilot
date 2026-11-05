@@ -11,41 +11,32 @@ This MVP uses synthetic vehicles, service histories, and clearly labeled example
 - **Frontend:** Next.js App Router with React and TypeScript in `frontend/`.
 - **Backend:** Python FastAPI REST API plus a standard MCP server in `backend/`.
 - **Backend docs:** Swagger UI at `/docs`, OpenAPI JSON at `/openapi.json`, and interface summary at `/api/capabilities`.
-- **Dataset:** 250 synthetic records and simulated-only telemetry streams in `data/vehicles.json`, loaded by the backend.
-- **Manual mileage:** advisor-reviewed `PATCH /api/vehicles/{serial}/mileage` replaces the current value in the local synthetic dataset; this is the only REST write route, and MCP remains read-only.
+- **Runtime database:** Supabase Postgres, accessed only by the Python backend. `data/vehicles.json` is the checked-in synthetic seed fixture, not a runtime fallback.
+- **Synthetic seed:** 250 synthetic vehicle records can be loaded with the idempotent backend seed command.
+- **Manual mileage:** advisor-reviewed `PATCH /api/vehicles/{serial}/mileage` replaces the current value in the synthetic record stored in Supabase; this is the only REST write route, and MCP remains read-only.
 - **API connection:** Next.js rewrites `/api/copilot/*` to the local FastAPI service, avoiding a separate browser CORS configuration for the demo.
 - **Agent connection:** MCP Streamable HTTP at `/mcp` and stdio for local subprocess-based agent harnesses.
 - **Local runtime:** Node.js 20.9+ and Python 3.11+.
 
 ## MCP interface
 
-Expose the synthetic dataset to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the validated synthetic data loader with REST. MCP remains read-only; the REST API has one advisor-reviewed synthetic mileage write route.
+Expose the synthetic records to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the Supabase-backed vehicle store with REST. MCP remains read-only; the REST API has one advisor-reviewed synthetic mileage write route.
 
 - Tools: search records, get one vehicle record, prepare customer drafts, prepare record-intake/outside-history drafts, and summarize the dataset.
 - Resources: a demo safety guide and individual synthetic vehicle records.
 - Draft tools return text only. They cannot send messages, submit requests, update records, book appointments, access a physical vehicle, or reach an external service.
 - The HTTP endpoint binds to localhost for the demo. Remote access requires a separately reviewed authentication and deployment setup; do not publicly expose this endpoint as-is.
 
-## Simulated OBD-II telemetry for the POC
+## Planned vehicle data source: OBD-II/CAN
 
-Every synthetic vehicle record carries a clearly labeled, deterministic telemetry sample for UI demonstration. This is generated fixture data only: there is no adapter connection, CAN communication, live vehicle reading, or physical vehicle access.
+For a later dealership pilot, add an optional read-only vehicle connection through an OBD-II adapter using CAN where the vehicle supports it. Read the VIN when available, then use an approved VIN decoder/catalog to resolve make, model, and year. Prefill an odometer reading only when the vehicle and adapter expose a supported value, then match the vehicle to dealership history.
 
-- Each of the 250 records has four streams: engine RPM (rpm), vehicle speed (km/h), coolant temperature (°C), and calculated engine load (%).
-- Each stream contains four numeric samples with timestamps in a fixed sample window. Record metadata declares mode/status `simulated`, source `synthetic_demo_generator`, and a notice that no adapter or physical vehicle is connected.
-- The existing vehicle REST response and MCP record/resource responses expose the telemetry read-only. There is no telemetry write route or separate external transport.
-- The vehicle page displays a “SIMULATED” badge, unit, latest sample/time, and a trend chart. Missing or empty streams display an explicit unavailable message.
-- The Ollama assistant and MCP instructions must describe telemetry as simulated whenever discussed. It is not current mileage, dealership service history, a diagnostic result, or evidence for a service recommendation.
-- Updating advisor-confirmed mileage must preserve telemetry; telemetry must never change mileage, history, completeness, or recommendations.
-- Synthetic telemetry exists to demonstrate a future data display only. Do not call it connected/live OBD-II data.
-
-## Future physical OBD-II/CAN source
-
-A later dealership pilot may add an optional read-only OBD-II adapter using CAN where supported. This requires a separate approved spec and adapter/vehicle coverage decisions.
-
-- Read VIN only when the adapter and vehicle expose it, then use an approved VIN decoder/catalog to resolve make, model, and year.
-- Odometer availability varies; do not assume generic OBD-II exposes it. Keep physical values' source, retrieval time, units, and availability status.
-- Physical vehicle data does not replace dealership service history. Unsupported, stale, or conflicting values require advisor resolution.
-- Send only approved read requests. Never issue coding, configuration, reset, actuation, or other write/control commands to a vehicle.
+- Treat the VIN read from the vehicle as the vehicle identifier; confirm how it maps to the dealership’s “serial number” field before using it as the record lookup key.
+- Read only fields the vehicle and adapter actually expose. VIN retrieval and odometer retrieval have different support; do not assume every vehicle provides odometer over generic OBD-II. Some fields may need an approved manufacturer-specific method or may be unavailable.
+- OBD-II vehicle data does not replace dealership service history. Keep service events sourced from dealership records or another approved history source.
+- Keep each value’s source, retrieval time, units, and availability status. If the OBD reading is missing, stale, or conflicts with the dealership record, show the discrepancy and pause mileage-based recommendations until the advisor resolves it.
+- Allow only approved read requests. Do not send coding, configuration, reset, actuation, or other write/control commands to the vehicle.
+- The current synthetic demo has no OBD adapter connection and does not read a physical vehicle.
 
 ## User and problem
 
@@ -58,8 +49,8 @@ A later dealership pilot may add an optional read-only OBD-II adapter using CAN 
 
 1. Advisor enters a vehicle serial number on an intuitive web page.
 2. The app searches the synthetic dealership service-record dataset.
-3. For a match in the demo, the app displays synthetic vehicle details, recorded mileage, service history, data timing, and clearly marked simulated OBD-II telemetry trends. A later connected version may prefill vehicle identity and supported odometer data from a physical adapter.
-4. The Python API returns the selected vehicle’s structured, synthetic recommendation examples from the JSON dataset, including status, demo rule text, and record evidence. The app does not calculate real service intervals.
+3. For a match in the demo, the app displays synthetic vehicle details, recorded mileage, service history, and data timing. A later connected version may prefill vehicle identity and available odometer data from an OBD-II/CAN adapter.
+4. The Python API returns the selected vehicle’s structured, synthetic recommendation examples from the Supabase record, including status, demo rule text, and record evidence. The app does not calculate real service intervals.
 5. The app flags safety-related items distinctly and tells the advisor to verify them against an approved source.
 6. The app can prepare editable drafts of a customer explanation, quote, and follow-up message. Drafts are never sent or booked automatically.
 7. If there is no match or the record is incomplete, the app explains what is missing and offers two paths:
@@ -79,15 +70,15 @@ A later dealership pilot may add an optional read-only OBD-II adapter using CAN 
 - Synthetic vehicle records include serial number, make/model/year, recorded odometer mileage and timestamp, service events, and any missing-data indicators.
 - No match, missing mileage, conflicting mileage, or sparse history must be shown as a data limitation; the app must not silently fill gaps.
 
-### Simulated OBD-II telemetry
+### Supabase vehicle database
 
-- All 250 synthetic records include four read-only sample streams: engine RPM (rpm), vehicle speed (km/h), coolant temperature (°C), and calculated engine load (%).
-- Each stream contains four timestamped numeric samples in a fixed demo window. All values are deterministic and synthetic; no physical OBD-II adapter is connected.
-- Vehicle REST and MCP record retrieval expose the telemetry with `mode: simulated`, `status: simulated`, the synthetic source, and a no-adapter notice.
-- The web page labels the panel “SIMULATED,” shows the unit, latest reading and time, and a trend chart. An absent/empty stream has an explicit unavailable state.
-- Telemetry is for display only. It cannot update mileage/history, affect recommendation status, diagnose a vehicle, or serve as service evidence.
-- The local assistant and MCP instructions must identify the values as simulated and not use them as evidence for a service recommendation.
-- See `docs/feature-spec-simulated-obd-telemetry.md`.
+- Supabase Postgres is the runtime source of truth for vehicle records. The backend accesses it through the official Python SDK; the browser and MCP clients never receive database credentials.
+- `public.vehicle_records` stores one record per normalized serial number, with the existing structured vehicle object in a JSONB column and an `updated_at` timestamp. The JSON fixture is used only by the seed command.
+- Checked-in migrations enable RLS and grant no direct access to `PUBLIC`, `anon`, or `authenticated`; only the backend server key has table access.
+- Configure `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in the ignored `backend/.env`. The same config supports hosted Supabase or the local Supabase stack. Never place the key in frontend code or Git.
+- Missing configuration, network errors, or migration errors produce a clear unavailable response. The backend never falls back to JSON at runtime.
+- The local API and MCP endpoint remain bound to localhost. Hosted-project provisioning, secret entry, and migration execution against a hosted project require an explicit separate action.
+- See `docs/feature-spec-supabase-database.md`.
 
 ### Manual mileage updates
 
@@ -122,7 +113,7 @@ A later dealership pilot may add an optional read-only OBD-II adapter using CAN 
 
 ## Safety, privacy, and trust boundaries
 
-- Use synthetic data only; do not include client or customer data, secrets, or production credentials.
+- Use synthetic data only; do not include client or customer data, secrets, or production credentials. Supabase URL/key settings remain backend-side; never commit or expose the server key.
 - Do not claim that a repair is necessary or that a safety defect has been diagnosed.
 - Show the evidence and rule behind every suggested service so the advisor can check it.
 - Treat missing, stale, or contradictory records as uncertainty that requires advisor follow-up.
@@ -136,7 +127,7 @@ A later dealership pilot may add an optional read-only OBD-II adapter using CAN 
 - Looking up real vehicles from their serial number.
 - Sending messages, submitting registration changes, creating quotes in a live system, booking appointments, or authorizing repairs.
 - Using a generative model to decide which maintenance is due.
-- Production deployment or claims that demo rules are valid for any real make/model/year.
+- Provisioning/writing to a hosted Supabase project, production dealership data, public API deployment, or claims that demo rules are valid for any real make/model/year.
 
 ## Verification plan
 
@@ -157,7 +148,8 @@ Before calling the MVP ready, automate these behaviors where practical and recor
 13. Ollama unavailable, no installed model, invalid tool, and MCP tool failure produce clear errors without making external calls.
 14. Chat cannot send drafts, write a vehicle record, book service, or control a vehicle; history is not persisted server-side.
 15. Manual mileage can replace the current value with date and source for a known serial; invalid/future values are rejected, unknown serials return 404, and conflicting/incomplete evidence keeps recommendations paused.
-16. Every known synthetic vehicle returns the four deterministic simulated telemetry streams with units/timestamps; UI/MCP/chat label them simulated, missing data stays unavailable, and telemetry cannot alter mileage, history, or recommendations.
+16. Supabase migrations create the private record table with RLS/privileges; idempotent seeding loads 250 synthetic records; API/MCP reads use the database, and mileage replacement persists while preserving unrelated record fields.
+17. Missing Supabase configuration or provider failure returns unavailable without JSON fallback; frontend and MCP callers cannot read or expose database keys.
 
 Review the code changes and evidence for each check before accepting them. A check that was not run is **unverified**, not passed. The existing verification plan defines expected behavior; it is not evidence that implementation has already passed.
 
@@ -211,7 +203,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - MCP-compatible agent harnesses can access the same synthetic records through read-only tools/resources over stdio or local Streamable HTTP.
 - The released demo uses 250 synthetic vehicle records and fictional service histories/rules.
 - Demo lookup uses a synthetic vehicle serial. A connected version may read a VIN through OBD-II/CAN and must map it to the dealership’s vehicle identifier before matching. A missing record offers a dealership-record intake draft or an outside-history request draft.
-- The synthetic POC displays four simulated OBD-II telemetry streams on every record; there is no physical adapter integration. The streams are not service evidence and do not affect recommendations. A future physical OBD-II/CAN workflow requires a separate spec. Service history remains a separate source.
+- A future connected workflow may prefill vehicle identity and available mileage from OBD-II/CAN; the current demo has no physical adapter integration. Service history remains a separate source.
 - Recommendations show service item, due/coming-up status, mileage or history evidence, and a customer-friendly explanation.
 - Safety-related items are flagged for advisor verification.
 - Customer explanations, quote text, follow-ups, registration requests, and outside-history requests are drafts only; nothing is sent or submitted.
@@ -225,6 +217,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - `docs/feature-spec-template.md` is the template for distinct features.
 - `docs/feature-spec-local-ollama-chat.md` defines the in-app assistant, local-only Ollama boundary, and full MCP capability access.
 - `docs/feature-spec-manual-mileage.md` defines advisor mileage replacement, provenance, and evidence limits.
+- `docs/feature-spec-supabase-database.md` defines the runtime Supabase store, local/hosted configuration, seed path, and security boundaries.
 - `frontend/app/` contains the Next.js page and styles.
 - `frontend/app/icon.svg` is the browser-tab favicon.
 - `frontend/next.config.ts` proxies browser API calls to FastAPI.
@@ -233,7 +226,9 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - `backend/app/local_agent.py` discovers local Ollama models and runs a bounded tool loop through the MCP server.
 - `frontend/app/chat-panel.tsx` provides the advisor-facing local agent chat.
 - `backend/mcp_stdio.py` is the local stdio launcher for MCP hosts.
-- `backend/app/data_store.py` loads shared synthetic data.
+- `backend/app/data_store.py` loads and updates vehicle records from Supabase.
+- `backend/seed_supabase.py` loads the synthetic JSON fixture into Supabase; it is not used for runtime reads.
+- `supabase/migrations/` tracks the database schema and access controls.
 - `backend/requirements.txt` pins Python and MCP dependencies.
 - `data/vehicles.json` stores the 250 vehicle records separately from the interface and API code.
 - `README.md` explains setup, local run commands, and sample vehicle scenarios.

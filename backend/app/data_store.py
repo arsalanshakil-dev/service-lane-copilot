@@ -1,49 +1,118 @@
-"""Shared access to the local synthetic dataset and advisor mileage updates."""
+"""Supabase-backed vehicle record access for REST and MCP."""
 
-import json
+from __future__ import annotations
+
 import os
 import re
-import tempfile
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from dotenv import load_dotenv
+from supabase import Client, create_client
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_FILE = PROJECT_ROOT / "data" / "vehicles.json"
+BACKEND_ROOT = PROJECT_ROOT / "backend"
+VEHICLE_TABLE = "vehicle_records"
 _DATA_WRITE_LOCK = Lock()
 
 
+class VehicleStoreUnavailableError(RuntimeError):
+    """Supabase is missing, unreachable, or has an invalid vehicle record."""
+
+
 @lru_cache(maxsize=1)
-def load_vehicles() -> dict[str, dict[str, Any]]:
-    """Load and validate the synthetic dataset once per process."""
+def get_supabase_client() -> Client:
+    """Create a backend-only client from environment or the ignored backend/.env."""
+    load_dotenv(BACKEND_ROOT / ".env", override=False)
+    url = os.getenv("SUPABASE_URL", "").strip()
+    key = os.getenv("SUPABASE_SECRET_KEY", "").strip()
+    if not url or not key:
+        raise VehicleStoreUnavailableError(
+            "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SECRET_KEY in backend/.env."
+        )
     try:
-        with DATA_FILE.open("r", encoding="utf-8") as data_file:
-            vehicles = json.load(data_file)
-    except FileNotFoundError as exc:
-        raise RuntimeError(f"Synthetic vehicle dataset not found: {DATA_FILE}") from exc
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Synthetic vehicle dataset is not valid JSON: {DATA_FILE}") from exc
+        return create_client(url, key)
+    except Exception as exc:
+        raise VehicleStoreUnavailableError(
+            "Could not initialize the Supabase vehicle database client."
+        ) from exc
 
-    if not isinstance(vehicles, dict):
-        raise RuntimeError("Synthetic vehicle dataset must be an object keyed by serial number.")
 
-    for serial, record in vehicles.items():
-        if not isinstance(record, dict) or record.get("serial") != serial:
-            raise RuntimeError(f"Invalid vehicle record for serial {serial!r}.")
-        if not isinstance(record.get("history"), list) or not isinstance(record.get("recs"), list):
-            raise RuntimeError(f"Vehicle record {serial!r} must contain history and recs lists.")
+def _execute(query: Any) -> list[dict[str, Any]]:
+    try:
+        response = query.execute()
+    except Exception as exc:
+        raise VehicleStoreUnavailableError(
+            "Supabase vehicle database is unavailable. Check the database URL, key, migration, and network."
+        ) from exc
+    rows = getattr(response, "data", None)
+    if not isinstance(rows, list):
+        raise VehicleStoreUnavailableError(
+            "Supabase returned an invalid vehicle-record response."
+        )
+    return rows
 
+
+def _validated_record(row: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    serial = row.get("serial")
+    record = row.get("record")
+    if (
+        not isinstance(serial, str)
+        or not serial
+        or serial != serial.strip().upper()
+        or not isinstance(record, dict)
+        or record.get("serial") != serial
+        or not isinstance(record.get("history"), list)
+        or not isinstance(record.get("recs"), list)
+    ):
+        raise VehicleStoreUnavailableError(
+            "Supabase contains an invalid vehicle record. Re-seed or repair the database."
+        )
+    return serial, record
+
+
+def load_vehicles() -> dict[str, dict[str, Any]]:
+    """Load the current Supabase records for dataset summaries and vehicle search."""
+    rows = _execute(
+        get_supabase_client().table(VEHICLE_TABLE).select("serial,record").order("serial")
+    )
+    vehicles: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise VehicleStoreUnavailableError(
+                "Supabase returned an invalid vehicle record."
+            )
+        serial, record = _validated_record(row)
+        vehicles[serial] = record
     return vehicles
 
 
 def find_vehicle(serial: str) -> dict[str, Any] | None:
-    """Find one vehicle by normalized demo serial/VIN key."""
-    return load_vehicles().get(serial.strip().upper())
+    """Find one vehicle by its normalized serial key."""
+    normalized = serial.strip().upper()
+    if not normalized:
+        return None
+    rows = _execute(
+        get_supabase_client()
+        .table(VEHICLE_TABLE)
+        .select("serial,record")
+        .eq("serial", normalized)
+        .limit(1)
+    )
+    if not rows:
+        return None
+    if not isinstance(rows[0], dict):
+        raise VehicleStoreUnavailableError(
+            "Supabase returned an invalid vehicle record."
+        )
+    return _validated_record(rows[0])[1]
 
 
 def search_vehicle_summaries(query: str = "", limit: int = 20) -> list[dict[str, Any]]:
-    """Return small synthetic record summaries matching serial, make, or model."""
+    """Return small summaries matching serial, make, model, or year."""
     term = query.strip().casefold()
     matches = []
     for vehicle in load_vehicles().values():
@@ -71,13 +140,15 @@ def update_vehicle_mileage(
     mileage_date: str,
     mileage_source: str,
 ) -> dict[str, Any] | None:
-    """Replace a known synthetic record's current mileage and persist provenance."""
+    """Replace a known record's mileage and provenance in Supabase."""
     normalized = serial.strip().upper()
+    if not normalized:
+        return None
     with _DATA_WRITE_LOCK:
-        vehicles = load_vehicles()
-        current = vehicles.get(normalized)
+        current = find_vehicle(normalized)
         if current is None:
             return None
+
         history_miles = []
         for event in current.get("history", []):
             raw_mileage = str(event.get("mileage", ""))
@@ -94,26 +165,29 @@ def update_vehicle_mileage(
         if has_conflict:
             updated["completeness"] = "Conflicting mileage"
 
-        updated_vehicles = dict(vehicles)
-        updated_vehicles[normalized] = updated
-        temporary_path: Path | None = None
         try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                dir=DATA_FILE.parent,
-                prefix=".vehicles-",
-                suffix=".tmp",
-                delete=False,
-            ) as temporary_file:
-                temporary_path = Path(temporary_file.name)
-                json.dump(updated_vehicles, temporary_file, ensure_ascii=False, indent=2)
-                temporary_file.write("\n")
-            os.replace(temporary_path, DATA_FILE)
-        except OSError:
-            if temporary_path is not None:
-                temporary_path.unlink(missing_ok=True)
-            raise
-
-        load_vehicles.cache_clear()
+            result = (
+                get_supabase_client()
+                .table(VEHICLE_TABLE)
+                .update(
+                    {
+                        "record": updated,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+                .eq("serial", normalized)
+                .select("serial")
+                .execute()
+            )
+        except Exception as exc:
+            raise VehicleStoreUnavailableError(
+                "Supabase could not save the mileage update."
+            ) from exc
+        changed_rows = getattr(result, "data", None)
+        if not isinstance(changed_rows, list):
+            raise VehicleStoreUnavailableError(
+                "Supabase returned an invalid mileage-update response."
+            )
+        if not changed_rows:
+            return None
         return updated

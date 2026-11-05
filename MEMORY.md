@@ -9,7 +9,8 @@ This file is a continuity summary, not a requirements document. Product requirem
 - Service Lane Copilot is a local synthetic-data demo for a dealership service advisor.
 - The frontend is Next.js App Router, React, and TypeScript in `frontend/`.
 - The backend is Python FastAPI plus MCP in `backend/`.
-- `data/vehicles.json` contains 250 synthetic vehicle records, including four deterministic, timestamped simulated OBD-II telemetry streams per record. It is the source for both REST and MCP access.
+- Supabase Postgres table `public.vehicle_records` is the runtime source for REST and MCP. `data/vehicles.json` contains 250 synthetic seed records only; there is no runtime JSON fallback.
+- Backend configuration is `SUPABASE_URL` plus `SUPABASE_SECRET_KEY` in ignored `backend/.env`; never expose the secret key to frontend code.
 - All vehicle records, recommendations, mileage, rules, and prices are demo content. No real dealership or customer information is allowed.
 - Due/coming-up items are stored synthetic examples, not calculated real maintenance guidance.
 
@@ -21,7 +22,7 @@ This file is a continuity summary, not a requirements document. Product requirem
 - MCP stdio launcher: `backend/mcp_stdio.py`.
 - MCP tools: `search_vehicle_records`, `get_vehicle_record`, `create_customer_draft`, `create_record_request_draft`, and `dataset_summary`.
 - MCP resources: `service-lane://demo-guide` and `vehicle://{serial}`.
-- MCP tools remain read-only. Vehicle record responses include simulated telemetry labeled `mode/status: simulated`; they do not contact anyone or change records. Telemetry is display-only and never used as mileage, service history, diagnostic, or recommendation evidence. Draft tools return text with `sent: false` / `submitted: false`. The local REST mileage route is the sole write path; it replaces mileage with advisor-entered date/source for known synthetic records and preserves telemetry.
+- MCP tools remain read-only. Draft tools return text with `sent: false` / `submitted: false`; they do not contact anyone or change records. The local REST mileage route is the sole write path; it replaces mileage with advisor-entered date/source for known synthetic records in Supabase.
 - Next.js proxies `/api/copilot/*` to FastAPI using `frontend/next.config.ts`.
 - In-app chat exposes `GET /api/chat/models` and `POST /api/chat`; model discovery and inference are fixed to Ollama at `http://127.0.0.1:11434` with no cloud fallback.
 - `backend/app/local_agent.py` discovers MCP tools and resources in-process with the pinned MCP SDK, passes tool schemas to Ollama, reads advertised resources, and limits each turn to six tool rounds/twelve tool calls. It refuses an answer when the model uses no MCP capability.
@@ -30,7 +31,7 @@ This file is a continuity summary, not a requirements document. Product requirem
 
 ## Local run commands
 
-Requirements: Node.js 20.9+ and Python 3.11+.
+Requirements: Node.js 20.9+, Python 3.11+, and a running Supabase instance (local Supabase CLI requires a Docker-compatible container runtime). Apply `supabase/migrations/`, set backend-only `SUPABASE_URL` and `SUPABASE_SECRET_KEY`, and run `python seed_supabase.py` from `backend/` to load or refresh the synthetic data. See README for detailed local and hosted setup.
 
 Backend, from `backend/`:
 
@@ -52,7 +53,7 @@ Open `http://localhost:3000`. For stdio MCP hosts, launch `<backend>/.venv/Scrip
 ## Verified state and known gaps
 
 - The source audit found a missing `date` import in the FastAPI mileage request model and a mismatch between the accepted replacement behavior and the missing-mileage-only form; issue #10 corrects both.
-- Regression tests are under `backend/tests/`, including `test_obd_telemetry.py` for stream coverage, schema, timestamp/range validity, unknown records, determinism, and preservation of evidence during mileage replacement. `.github/workflows/verify.yml` runs them and the frontend production build on pull requests and main pushes. The local command runner fails during setup refresh, so no local tests/build or live Ollama/MCP flows have been run. Check GitHub Actions for the workflow result.
+- Supabase database adapter tests and mileage API regression tests are under `backend/tests/`; `.github/workflows/verify.yml` runs backend tests and the frontend production build on pull requests and main pushes. GitHub Actions run 9 passed both jobs for commit `40654ab0be476325a6e260fc3dfb8fbaf0a1bead`; a subsequent README-only update was made after that run, so verify the latest PR checks before merging.
 - The acceptance and verification plan is in `SERVICE_LANE_COPILOT_SPEC.md` and `docs/feature-spec-local-ollama-chat.md`. The local agent and chat have not been run in this environment; tool-calling behavior is unverified until exercised with an installed Ollama model.
 - Do not assume the MCP mount, tools, UI, or API are runtime-verified based on source inspection alone.
 - No live OBD-II/CAN integration, dealership history integration, authentication, hosted deployment, or real maintenance catalog exists.
