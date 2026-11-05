@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import re
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -12,7 +13,12 @@ from mcp import Client
 from .mcp_server import mcp_server
 
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
-OLLAMA_TIMEOUT_SECONDS = 180
+# Local models can take several minutes to load or produce a tool-calling reply.
+# Keep this configurable for slower laptops and the first cold start.
+try:
+    OLLAMA_TIMEOUT_SECONDS = max(30, min(1_800, int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "600"))))
+except ValueError:
+    OLLAMA_TIMEOUT_SECONDS = 600
 MAX_TOOL_ROUNDS = 6
 MAX_TOOL_CALLS = 12
 MAX_HISTORY_MESSAGES = 12
@@ -25,8 +31,22 @@ class OllamaUnavailableError(RuntimeError):
     """The local Ollama service could not be reached."""
 
 
+class OllamaTimeoutError(OllamaUnavailableError):
+    """Ollama is reachable but did not answer within the request timeout."""
+
+
 class OllamaRequestError(RuntimeError):
     """Ollama returned an error for a local model request."""
+
+
+OLLAMA_ERRORS = (OllamaUnavailableError, OllamaRequestError)
+
+
+def _timeout_error() -> OllamaTimeoutError:
+    return OllamaTimeoutError(
+        f"The local model did not respond within {OLLAMA_TIMEOUT_SECONDS} seconds. "
+        "Try a smaller local model, or raise OLLAMA_TIMEOUT_SECONDS in backend/.env."
+    )
 
 
 def _ollama_request(path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -44,10 +64,16 @@ def _ollama_request(path: str, payload: dict[str, Any] | None = None) -> dict[st
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:1_000]
         raise OllamaRequestError(f"Ollama returned HTTP {exc.code}: {detail}") from exc
-    except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+    except TimeoutError as exc:
+        raise _timeout_error() from exc
+    except URLError as exc:
+        if isinstance(exc.reason, TimeoutError):
+            raise _timeout_error() from exc
         raise OllamaUnavailableError(
             "Could not reach the local Ollama service at 127.0.0.1:11434."
         ) from exc
+    except json.JSONDecodeError as exc:
+        raise OllamaRequestError("Ollama returned a response that was not valid JSON.") from exc
     if not isinstance(result, dict):
         raise OllamaRequestError("Ollama returned an invalid response.")
     return result
@@ -174,12 +200,43 @@ def _tool_call_parts(call: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     return name, arguments
 
 
+def _find_ollama_error(error: BaseException) -> BaseException | None:
+    """Return the first Ollama error inside a (possibly nested) exception group."""
+    if isinstance(error, OLLAMA_ERRORS):
+        return error
+    if isinstance(error, BaseExceptionGroup):
+        for inner in error.exceptions:
+            found = _find_ollama_error(inner)
+            if found is not None:
+                return found
+    return None
+
+
 async def chat_with_local_agent(
     model: str,
     message: str,
     history: list[dict[str, str]],
 ) -> dict[str, Any]:
-    """Run a bounded local model conversation with all registered MCP tools/resources."""
+    """Run a bounded local model conversation with all registered MCP tools/resources.
+
+    The MCP client runs its session in an anyio task group, so an Ollama error raised
+    inside `async with Client(...)` surfaces as a nested ExceptionGroup. Unwrap it so
+    API handlers can return the specific 503/504/502 response instead of a generic 500.
+    """
+    try:
+        return await _chat_with_mcp_client(model, message, history)
+    except BaseExceptionGroup as group:
+        ollama_error = _find_ollama_error(group)
+        if ollama_error is None:
+            raise
+        raise ollama_error from group
+
+
+async def _chat_with_mcp_client(
+    model: str,
+    message: str,
+    history: list[dict[str, str]],
+) -> dict[str, Any]:
     local_models = await asyncio.to_thread(list_local_models)
     if model not in local_models:
         raise OllamaRequestError(
@@ -247,6 +304,9 @@ async def chat_with_local_agent(
                     "messages": messages,
                     "tools": tool_definitions,
                     "stream": False,
+                    # Thinking-capable models (qwen3/qwen3.5) otherwise reason at length
+                    # before each tool call, which can exceed the timeout on CPU-only machines.
+                    "think": False,
                     "options": {"temperature": 0.1},
                 },
             )

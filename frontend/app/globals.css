@@ -6,7 +6,7 @@
 .lookup-hint{flex-wrap:wrap}
 .record-paths{margin:10px 0 13px}
 
-.chat-assistant{position:fixed;right:24px;bottom:22px;z-index:6;font-family:'DM Sans',sans-serif}
+.chat-assistant{position:fixed;right:24px;bottom:22px;z-index:1000;font-family:'DM Sans',sans-serif}
 .chat-launcher{height:42px;border:0;border-radius:24px;padding:0 17px;background:#126b52;color:#fff;box-shadow:0 6px 22px rgba(20,48,36,.2);font-size:12px;font-weight:700}
 .chat-launcher span{font-size:15px;margin-right:4px}
 .chat-launcher:hover{background:#09543f}

@@ -14,7 +14,7 @@ This MVP uses synthetic vehicles, service histories, and clearly labeled example
 - **Runtime database:** Supabase Postgres, accessed only by the Python backend. `data/vehicles.json` is the checked-in synthetic seed fixture, not a runtime fallback.
 - **Synthetic seed:** 250 synthetic vehicle records can be loaded with the idempotent backend seed command.
 - **Manual mileage:** advisor-reviewed `PATCH /api/vehicles/{serial}/mileage` replaces the current value in the synthetic record stored in Supabase; this is the only REST write route, and MCP remains read-only.
-- **API connection:** Next.js rewrites `/api/copilot/*` to the local FastAPI service, avoiding a separate browser CORS configuration for the demo.
+- **API connection:** Next.js rewrites `/api/copilot/*` to the local FastAPI service, avoiding a separate browser CORS configuration for the demo. In development, allow both `localhost` and `127.0.0.1` so Next.js client assets and HMR work from either loopback address.
 - **Agent connection:** MCP Streamable HTTP at `/mcp` and stdio for local subprocess-based agent harnesses.
 - **Local runtime:** Node.js 20.9+ and Python 3.11+.
 
@@ -64,6 +64,11 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 
 - The browser tab displays a recognizable Service Lane Copilot icon using the Next.js App Router icon convention.
 
+### Local development origin
+
+- The interactive page must work when opened at either `http://localhost:3000` or `http://127.0.0.1:3000`.
+- Next.js development assets and HMR must load from both loopback hostnames; a 403 must not leave a server-rendered but non-interactive page.
+
 ### Vehicle record and lookup
 
 - A serial-number lookup returns either one matching synthetic vehicle or a clear no-match result.
@@ -100,6 +105,11 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 
 - The web app includes a chat assistant that can use every tool and resource registered by the existing MCP server, including fixed resources and resource templates.
 - The chat model is selected from models installed on the local Ollama service. Model discovery and inference use only `http://127.0.0.1:11434`; no cloud fallback or remote model URL is allowed.
+- Filter embedding-only Ollama models from the chat selector; default to an installed chat-capable model so an embedding model is not sent to `/api/chat`.
+- Allow up to 600 seconds per local Ollama HTTP request by default, configurable with backend-only `OLLAMA_TIMEOUT_SECONDS` (30–1800 seconds). This limit applies per request in a multi-step MCP turn.
+- Send `think: false` on local chat requests so thinking-capable models do not spend the request timeout on hidden reasoning.
+- Return HTTP 503 when local Ollama cannot be reached and HTTP 504 with a timeout message when a running model exceeds the request timeout. Chat failures must never surface as a generic HTTP 500.
+- If the backend returns a non-JSON or error response, show a readable error with its HTTP status instead of a JSON parsing exception.
 - The assistant may retrieve synthetic data and prepare drafts through existing MCP capabilities. It cannot write records, send messages, submit requests, book appointments, control a vehicle, or access an outside system.
 - Vehicle facts, recommendation evidence, and safety status must be grounded in MCP tool/resource output. Incomplete or conflicting data remains uncertain. The model cannot decide maintenance intervals.
 - Conversation history is kept in browser memory only.

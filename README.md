@@ -57,6 +57,7 @@ service-lane-copilot/
 │   ├── seed_supabase.py              # Idempotent synthetic fixture loader
 │   ├── mcp_stdio.py                  # Local stdio MCP launcher
 │   ├── tests/
+│   │   ├── test_local_agent.py       # Local Ollama chat loop and error-mapping checks
 │   │   ├── test_mileage.py           # Mileage replacement and API regression checks
 │   │   └── test_supabase_store.py    # Supabase adapter, seed, and migration checks
 │   └── app/
@@ -100,6 +101,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `backend/app/mcp_server.py` | MCP server setup, read-only tools, resources, and draft responses exposed to both harnesses and in-app chat. |
 | `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions. |
 | `backend/tests/test_supabase_store.py` | Database adapter, fixture seed validation, and migration access checks. |
+| `backend/tests/test_local_agent.py` | Local Ollama chat checks: `think: false` payload, grounded MCP tool round-trip, and 503/504 error mapping. |
 | `backend/tests/test_mileage.py` | Standard-library regression checks for replacement, provenance, conflict, and API validation. |
 | `frontend/package.json` | Frontend scripts and pinned direct dependencies. |
 | `frontend/package-lock.json` | Exact resolved frontend dependency versions for repeatable npm installs. |
