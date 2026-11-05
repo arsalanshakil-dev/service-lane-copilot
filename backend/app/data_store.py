@@ -190,6 +190,7 @@ def update_vehicle_mileage(
     mileage: int,
     mileage_date: str,
     mileage_source: str,
+    actor: str = WEB_ACTOR,
 ) -> dict[str, Any] | None:
     """Replace a known record's mileage and provenance in Supabase."""
     normalized = serial.strip().upper()
@@ -215,7 +216,7 @@ def update_vehicle_mileage(
         updated["conflicting"] = has_conflict
         if has_conflict:
             updated["completeness"] = "Conflicting mileage"
-        append_change(updated, "mileage_updated", f"Current mileage set to {mileage:,} mi ({mileage_source.replace('_', '-')}, {mileage_date}).")
+        append_change(updated, "mileage_updated", f"Current mileage set to {mileage:,} mi ({mileage_source.replace('_', '-')}, {mileage_date}).", actor)
 
         try:
             result = (
@@ -266,6 +267,7 @@ def record_completed_service(
     mileage: int | None,
     detail: str = "",
     recommendation_name: str | None = None,
+    actor: str = WEB_ACTOR,
 ) -> dict[str, Any] | None:
     """Record an advisor-completed service in a known record and save it to Supabase.
 
@@ -343,6 +345,7 @@ def record_completed_service(
             "service_recorded",
             f"Recorded {service_name} on {display_date} at {mileage_text}"
             + (f"; marked '{recommendation_name}' Completed." if recommendation_name else "."),
+            actor,
         )
 
         try:

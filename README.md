@@ -2,7 +2,7 @@
 
 For a quick project overview, see [`CONTEXT.md`](CONTEXT.md). Product requirements and acceptance criteria are maintained in [`SERVICE_LANE_COPILOT_SPEC.md`](SERVICE_LANE_COPILOT_SPEC.md).
 
-Service Lane Copilot is a synthetic-data demo for dealership service advisors. The project uses a **Next.js + React + TypeScript frontend** and a **Python FastAPI backend**. The Python backend reads and updates synthetic vehicle records in **Supabase Postgres** and exposes them through a **Model Context Protocol (MCP)** server and REST API for MCP-compatible agent harnesses and the web UI. The 250-record `data/vehicles.json` file is a seed fixture, not a runtime fallback. MCP remains read-only; the local REST mileage and completed-service endpoints are the only write paths.
+Service Lane Copilot is a synthetic-data demo for dealership service advisors. The project uses a **Next.js + React + TypeScript frontend** and a **Python FastAPI backend**. The Python backend reads and updates synthetic vehicle records in **Supabase Postgres** and exposes them through a **Model Context Protocol (MCP)** server and REST API for MCP-compatible agent harnesses and the web UI. The 250-record `data/vehicles.json` file is a seed fixture, not a runtime fallback. Writes go through the local REST API and validated, change-logged MCP write tools; the in-app chat only proposes changes for the advisor to confirm.
 
 All vehicle details, service events, mileage, recommendations, and maintenance thresholds are fictional demo content. Do not use the demo rules to make real maintenance decisions. No real dealership systems, customers, or outside history services are connected.
 
@@ -26,7 +26,7 @@ flowchart LR
     Harness[MCP-compatible agent harness] -->|Streamable HTTP /mcp| MCP[MCP server\nbackend/app/mcp_server.py]
     Harness -->|stdio| Launcher[backend/mcp_stdio.py]
     Launcher --> MCP
-    MCP -->|read-only| Store
+    MCP -->|read + validated writes| Store
     API -->|Swagger /docs · OpenAPI /openapi.json| Docs[Backend API docs]
 ```
 
@@ -54,6 +54,7 @@ service-lane-copilot/
 │   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits
 │   ├── feature-spec-record-service.md # Recording completed services and status updates
 │   ├── feature-spec-edit-vehicle-records.md # Adding vehicles and editing records with a change log
+│   ├── feature-spec-mcp-write-tools.md # MCP write tools and advisor-confirmed chat changes
 │   ├── feature-spec-local-ai-assist.md # Local AI drafts and AI-suggested service items
 │   ├── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
 │   └── feature-spec-supabase-database.md # Supabase runtime store and seed behavior
@@ -66,6 +67,7 @@ service-lane-copilot/
 │   ├── tests/
 │   │   ├── test_ai_assist.py         # AI draft and suggestion validation checks
 │   │   ├── test_edit_records.py      # Add/edit record routes and change log checks
+│   │   ├── test_mcp_writes.py        # MCP write tools and chat proposal checks
 │   │   ├── test_local_agent.py       # Local Ollama chat loop and error-mapping checks
 │   │   ├── test_mileage.py           # Mileage replacement and API regression checks
 │   │   ├── test_record_service.py    # Completed-service recording checks
@@ -75,7 +77,8 @@ service-lane-copilot/
 │       ├── ai_assist.py              # Local AI drafts and validated AI suggestions
 │       ├── record_edits.py           # Add vehicles; edit details, history, recommendations
 │       ├── local_agent.py            # Local Ollama and MCP tool orchestration
-│       ├── mcp_server.py             # Read-only MCP tools and resources
+│       ├── mcp_server.py             # MCP read, draft, and write tools and resources
+│       ├── mcp_writes.py             # Shared validated write operations for MCP tools and chat proposals
 │       └── data_store.py             # Supabase data access and mileage update
 └── frontend/
     ├── package.json                  # Frontend scripts and dependencies
@@ -104,6 +107,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `SERVICE_LANE_COPILOT_SPEC.md` | Product requirements, boundaries, acceptance criteria, and the verification plan. |
 | `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |
 | `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
+| `docs/feature-spec-mcp-write-tools.md` | MCP write tools, chat proposals with Apply/Discard, and the no-history-delete rule. |
 | `docs/feature-spec-edit-vehicle-records.md` | Adding vehicles and editing details, history, and recommendations; 404/409/422 rules and the change log. |
 | `docs/feature-spec-record-service.md` | Recording a completed service: history event, Completed status on a stored recommendation, odometer update, and limits. |
 | `README.md` | Setup instructions, architecture diagram, folder tree, file guide, endpoints, and sample serial numbers. |
@@ -117,12 +121,14 @@ The tree shows the main source files and intentionally omits generated folders s
 | `backend/requirements.txt` | Pinned Python packages for FastAPI, Uvicorn, MCP, Supabase, and environment loading. |
 | `backend/mcp_stdio.py` | Entry point for MCP clients that start the server as a local subprocess. |
 | `backend/app/main.py` | FastAPI REST, local-chat and mileage endpoints, and mounted Streamable HTTP MCP endpoint. |
-| `backend/app/mcp_server.py` | MCP server setup, read-only tools, resources, and draft responses exposed to both harnesses and in-app chat. |
+| `backend/app/mcp_server.py` | MCP server setup: read tools, draft tools, write tools, and resources exposed to harnesses and the in-app chat. |
+| `backend/app/mcp_writes.py` | Validated, change-logged write operations used by the MCP write tools and by confirmed chat proposals. |
 | `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions. |
 | `backend/tests/test_synthetic_generator.py` | Generator checks: fixture matches the generator, consistent mileage and recommendations, even scenario mix, seed validation. |
 | `backend/tests/test_supabase_store.py` | Database adapter, fixture seed validation, and migration access checks. |
 | `backend/app/record_edits.py` | Add a vehicle, edit details (including serial rename), edit/delete history entries, add/edit/remove recommendations; each write is validated and logged. |
 | `backend/app/ai_assist.py` | Local Ollama customer drafts and AI suggestions; drops suggestions without cited history or with prices, intervals, or duplicates. |
+| `backend/tests/test_mcp_writes.py` | MCP write tools (saved/rejected, actor), chat proposals (no write before Apply, single use, expiry, discard, 422). |
 | `backend/tests/test_edit_records.py` | Add/edit routes: success, 404/409/422 without writes, newest-first history, serial rename, change log limit. |
 | `backend/tests/test_ai_assist.py` | AI draft and suggestion checks: validation rules, backend-built evidence, limited records, 404/503/504/502 mapping, and no writes. |
 | `backend/tests/test_ai_summary.py` | Records AI summary checks: backend-built "Needs now", limitation text, prices rejected, telemetry excluded, 404/503/504/502, no writes. |
@@ -191,7 +197,7 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Swagger UI is at `http://127.0.0.1:8000/docs`; it documents the REST endpoints including `PATCH /api/vehicles/{serial}/mileage` (the only local synthetic-data write route) and points to the read-only MCP interface overview. The raw OpenAPI schema is at `http://127.0.0.1:8000/openapi.json`, backend capabilities are at `http://127.0.0.1:8000/api/capabilities`, the health check is at `http://127.0.0.1:8000/api/health`, and the MCP Streamable HTTP endpoint is `http://127.0.0.1:8000/mcp`. MCP messages use the MCP protocol, so the MCP tool list is described in the overview rather than represented as OpenAPI routes.
+Swagger UI is at `http://127.0.0.1:8000/docs`; it documents the REST endpoints including the synthetic-data write routes (mileage, completed services, add vehicle, edit details/history/recommendations) and points to the MCP interface overview. The raw OpenAPI schema is at `http://127.0.0.1:8000/openapi.json`, backend capabilities are at `http://127.0.0.1:8000/api/capabilities`, the health check is at `http://127.0.0.1:8000/api/health`, and the MCP Streamable HTTP endpoint is `http://127.0.0.1:8000/mcp`. MCP messages use the MCP protocol, so the MCP tool list is described in the overview rather than represented as OpenAPI routes.
 
 ### Terminal 2: Next.js web app
 
@@ -228,9 +234,10 @@ The exact configuration-file format differs by harness. Replace `<project>` with
 - `create_customer_draft` — prepare an explanation, quote, or follow-up draft.
 - `create_record_request_draft` — prepare a record-intake or outside-history request draft.
 - `dataset_summary` — report the demo data boundary and record count.
+- Write tools: `add_vehicle`, `update_vehicle_details`, `update_vehicle_mileage`, `record_completed_service`, `edit_history_entry`, `add_recommendation`, `update_recommendation`, `remove_recommendation` (validated, change-logged; service history can be edited but not deleted).
 - `service-lane://demo-guide` and `vehicle://{serial}` — read-only resources.
 
-All MCP tools are read-only. Draft tools return `sent: false` and do not contact a customer, dealership, vehicle, or external service. The MCP endpoint binds to localhost with the dev server. Do not expose it to a network or public hostname without adding authentication and deployment security controls.
+Read and draft tools never change records; draft tools return `sent: false` and do not contact a customer, dealership, vehicle, or external service. Write tools change synthetic records only, log each change (actor "MCP agent"), and return `saved: false` with a reason when input is invalid or stale. In the in-app chat, write requests appear as confirm cards and are saved only after **Apply change**. The MCP endpoint binds to localhost with the dev server. Do not expose it to a network or public hostname without adding authentication and deployment security controls.
 
 Run backend regression checks from `backend/` with `python -m unittest discover -s tests -v`. The local mileage update and completed-service recording are the only REST operations that change synthetic records in Supabase.\n\nDirect runtime versions are pinned in `frontend/package.json` and `backend/requirements.txt`. The frontend requires Node.js 20.9 or newer.
 

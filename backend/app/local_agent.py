@@ -4,6 +4,9 @@ import asyncio
 import json
 import os
 import re
+import threading
+import time
+import uuid
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -11,6 +14,7 @@ from urllib.request import Request, urlopen
 from mcp import Client
 
 from .mcp_server import mcp_server
+from .mcp_writes import CHAT_CONFIRMED_ACTOR, WRITE_TOOL_NAMES, describe_write, execute_write
 
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 # Local models can take several minutes to load or produce a tool-calling reply.
@@ -37,6 +41,57 @@ UNGROUNDED_HINT = (
     "If you asked about a vehicle, include its serial number (for example NS-2048). "
     "Models without tool-calling support cannot answer from the records."
 )
+# ---- Advisor-confirmed write proposals (issue #44) ----
+# The local chat model never writes directly. A write tool call becomes a proposal that the
+# advisor reviews on a confirm card; only POST /api/chat/proposals/{id}/apply saves it.
+PROPOSAL_TTL_SECONDS = 15 * 60
+_proposals: dict[str, dict[str, Any]] = {}
+_proposals_lock = threading.Lock()
+
+
+class ProposalNotFound(Exception):
+    """Unknown, already used, or expired proposal id."""
+
+
+def _purge_expired(now: float) -> None:
+    for key in [k for k, v in _proposals.items() if now - v["created"] > PROPOSAL_TTL_SECONDS]:
+        del _proposals[key]
+
+
+def create_proposal(tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    proposal = {
+        "id": uuid.uuid4().hex,
+        "tool": tool,
+        "arguments": dict(arguments),
+        "summary": describe_write(tool, arguments),
+    }
+    with _proposals_lock:
+        now = time.monotonic()
+        _purge_expired(now)
+        _proposals[proposal["id"]] = {**proposal, "created": now}
+    return proposal
+
+
+def _take_proposal(proposal_id: str) -> dict[str, Any]:
+    with _proposals_lock:
+        _purge_expired(time.monotonic())
+        proposal = _proposals.pop(proposal_id, None)
+    if proposal is None:
+        raise ProposalNotFound("That proposed change was already used, discarded, or has expired. Ask the assistant again.")
+    return proposal
+
+
+def apply_proposal(proposal_id: str) -> dict[str, Any]:
+    """Run a confirmed proposal once. Raises ProposalNotFound or mcp_writes.WriteRejected."""
+    proposal = _take_proposal(proposal_id)
+    result = execute_write(proposal["tool"], proposal["arguments"], CHAT_CONFIRMED_ACTOR)
+    return {**result, "proposal_id": proposal_id, "summary": proposal["summary"]}
+
+
+def discard_proposal(proposal_id: str) -> None:
+    _take_proposal(proposal_id)
+
+
 SCOPE_INSTRUCTIONS = (
     "Scope: you only handle dealership service-lane topics: vehicle lookup, service history, mileage, "
     "stored service recommendations and their evidence, customer or record-request drafts, the synthetic "
@@ -281,10 +336,14 @@ async def _chat_with_mcp_client(
         "You cannot modify records, book service, contact anyone, access a vehicle, or call outside services. "
         "Vehicle telemetry is simulated POC data, not live OBD-II. Never use it to determine mileage, service history, diagnoses, or recommendations; identify it as simulated whenever discussed. "
         "When you discuss a service suggestion, include its recorded status and evidence when available. "
+        "When the advisor clearly asks to add or change a record, call the matching write tool after reading the record "
+        "(use get_vehicle_record for history and recommendation positions). Write tools only create a proposal: nothing is "
+        "saved until the advisor confirms it on screen, so never say a change was saved. "
         f"{SCOPE_INSTRUCTIONS}"
     )
 
     tools_used: list[str] = []
+    proposals: list[dict[str, Any]] = []
     async with Client(mcp_server) as client:
         tool_result = await client.list_tools()
         resources_result = await client.list_resources()
@@ -358,6 +417,7 @@ async def _chat_with_mcp_client(
                     "tools_used": list(dict.fromkeys(tools_used)),
                     "model": model,
                     "out_of_scope": False,
+                    "proposals": proposals,
                 }
 
             for call in calls:
@@ -387,6 +447,19 @@ async def _chat_with_mcp_client(
                     messages.append(
                         {"role": "tool", "tool_name": name, "content": result_text}
                     )
+                elif name in WRITE_TOOL_NAMES and name in tool_names:
+                    proposal = create_proposal(name, arguments)
+                    proposals.append(proposal)
+                    tools_used.append(f"{name} (proposed)")
+                    messages.append({
+                        "role": "tool",
+                        "tool_name": name,
+                        "content": (
+                            f"PROPOSED, NOT SAVED: {proposal['summary']}. The advisor must review and confirm this "
+                            "change on screen before anything is saved. Tell the advisor what you proposed and that it "
+                            "needs their confirmation; do not say it was saved."
+                        ),
+                    })
                 elif name in tool_names:
                     try:
                         result = await client.call_tool(name, arguments)
@@ -413,4 +486,5 @@ async def _chat_with_mcp_client(
             ),
             "tools_used": list(dict.fromkeys(tools_used)),
             "model": model,
+            "proposals": proposals,
         }

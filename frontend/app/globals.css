@@ -266,3 +266,34 @@ html[data-theme="dark"] .chat-model-name{color:#e7eeea}
 html[data-theme="dark"] .edited-tag{background:#2a2f4d;color:#c4c9f5}
 html[data-theme="dark"] .inline-confirm{background:#3a2422;border-color:#5a3430;color:#f0d0cb}
 html[data-theme="dark"] .edit-form select{background:#202c26;border-color:#34453a;color:#d8e3dd}
+
+/* Edit / Delete / Remove as buttons like "Mark as done" (issue #44 UI tweak) */
+.danger-button{color:var(--red);border-color:#efd3cf}
+.danger-button:hover{background:var(--red-pale)}
+.row-actions,.rec-actions{gap:6px}
+html[data-theme="dark"] .danger-button{color:#f0a89f;border-color:#5a3430}
+html[data-theme="dark"] .danger-button:hover{background:#3a2422}
+
+/* Chat confirm cards for proposed record changes (issue #44) */
+.proposal-card{margin-top:8px;border:1px solid #d9e6df;background:#f7fbf9;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.proposal-card strong{font-size:12px;color:var(--amber)}
+.proposal-card p{margin:0;color:var(--ink)}
+.proposal-actions{display:flex;flex-wrap:wrap;gap:6px}
+.proposal-actions .primary-button{height:32px}
+.proposal-status{font-size:12px;color:var(--muted)}
+.proposal-status.saved{color:var(--green);font-weight:700}
+.proposal-status.error{color:var(--red)}
+.proposal-card.saved strong,.proposal-card.discarded strong{color:var(--muted)}
+html[data-theme="dark"] .proposal-card{background:#18221d;border-color:#34453a}
+
+/* Update mileage and Settings links use the same button style as the rest of the app */
+a.copy-button{display:inline-flex;align-items:center;text-decoration:none;min-height:30px}
+.copy-button.meta-action{margin-top:6px;text-decoration:none;color:#4b6556;font-size:12px;padding:6px 9px}
+.ai-model-note a.copy-button,.records-ai-row a.copy-button,.copy-button.chat-settings-link{color:#4b6556;font-weight:700;font-size:12px;padding:5px 9px;margin-left:4px}
+html[data-theme="dark"] .copy-button.meta-action,html[data-theme="dark"] a.copy-button{color:#d8e3dd}
+
+/* Formatted assistant replies (bold, lists, paragraphs) */
+.chat-text p{margin:0 0 6px}
+.chat-text ul,.chat-text ol{margin:2px 0 6px;padding-left:18px}
+.chat-text li{margin:2px 0}
+.chat-text strong{font-weight:700}

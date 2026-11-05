@@ -58,7 +58,7 @@ Updated: 2026-11-05
 
 - Potential harm if wrong: Fabricated maintenance advice or a draft presented as an approved repair recommendation can reduce trust.
 - Required human review: Advisors verify all record evidence and drafts. Safety items remain verification prompts.
-- External actions and access: Chat requests go to loopback Ollama only. MCP tools/resources are read-only; drafts are unsent. No external service is called.
+- External actions and access: Chat requests go to loopback Ollama only. Read and draft tools never change records; write tool calls from the chat model become proposals that are saved only after the advisor clicks Apply (issue #44). Drafts are unsent. No external service is called.
 
 ## Failure cases
 

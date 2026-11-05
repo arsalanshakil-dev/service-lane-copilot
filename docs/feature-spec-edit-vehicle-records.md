@@ -19,7 +19,7 @@ Updated: 2026-11-06
 | `POST /api/vehicles` | Add a vehicle: `serial` (3–32 chars, letters/digits/hyphen, stored upper-case), `make`, `model` (1–40 chars), `year` (1980 to next year), optional `mileage` (integer ≥ 0) with `mileageDate` (not in the future). Starts with no history, no recommendations, `incomplete: true`, completeness "New record – history needed". Existing serial → 409. |
 | `PATCH /api/vehicles/{serial}` | Edit `make`, `model`, `year`, and optionally rename the serial (`newSerial`). Renaming to an existing serial → 409. |
 | `PUT /api/vehicles/{serial}/history/{index}` | Replace one history entry (`date`, `name`, `detail`, `mileage` or null). Body includes `expected: {date, name}`; mismatch → 409. |
-| `DELETE /api/vehicles/{serial}/history/{index}?expectedDate=&expectedName=` | Delete one history entry with the same guard. |
+| ~~`DELETE …/history/{index}`~~ | Removed 2026-11-06 (issue #44): service history can be edited but never deleted. |
 | `POST /api/vehicles/{serial}/recommendations` | Add an advisor-entered recommendation: `name`, `status` (Due, Coming up, Advisor verification, Not yet due), `text`, `evidence`, optional `rule`, `safety`. Stored with `source: advisor_entered`. |
 | `PUT /api/vehicles/{serial}/recommendations/{index}` | Edit one recommendation (`expectedName` guard). Edited recommendations are marked `source: advisor_entered`. |
 | `DELETE /api/vehicles/{serial}/recommendations/{index}?expectedName=` | Remove one recommendation (`expectedName` guard). |
@@ -45,7 +45,7 @@ Updated: 2026-11-06
 2. Unknown serial → 404; invalid input → 422; duplicate serial or stale expected entry → 409; no write in any failure case.
 3. Every successful write adds one change-log entry; the log keeps at most 100 entries.
 4. A new vehicle opens in the Service lane with recommendations paused and a "history needed" status.
-5. MCP tools remain read-only.
+5. MCP tools remained read-only in this ticket; issue #44 adds validated MCP write tools.
 
 ## Verification plan
 

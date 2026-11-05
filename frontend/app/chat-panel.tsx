@@ -2,17 +2,26 @@
 
 import { FormEvent, useState } from "react";
 import { useAiModel } from "./ai-model";
+import { sendJson } from "./record-editors";
+
+// Issue #44: the chat never saves changes itself. Write requests come back as proposals that
+// the advisor applies or discards here; applying calls the backend once and is logged.
+type Proposal = { id: string; tool: string; summary: string; arguments: Record<string, unknown> };
+type ProposalState = { status: "pending" | "applying" | "saved" | "discarded" | "error"; message?: string };
+export const RECORD_CHANGED_EVENT = "service-lane-record-changed";
 
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   tools?: string[];
+  proposals?: Proposal[];
 };
 
 type ChatResponse = {
   reply: string;
   tools_used: string[];
   model: string;
+  proposals?: Proposal[];
 };
 
 const HISTORY_LIMIT = 12;
@@ -25,6 +34,32 @@ export default function ChatPanel() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [proposalStates, setProposalStates] = useState<Record<string, ProposalState>>({});
+
+  function setProposal(id: string, state: ProposalState) {
+    setProposalStates((current) => ({ ...current, [id]: state }));
+  }
+
+  async function applyProposal(proposal: Proposal) {
+    setProposal(proposal.id, { status: "applying" });
+    try {
+      const result = await sendJson<{ saved: boolean; serial: string; change?: { summary: string } }>("POST", `/api/copilot/chat/proposals/${proposal.id}/apply`);
+      setProposal(proposal.id, { status: "saved", message: result.change?.summary ?? "Saved." });
+      // Let an open vehicle view refresh itself.
+      window.dispatchEvent(new CustomEvent(RECORD_CHANGED_EVENT, { detail: { serial: result.serial, previousSerial: String(proposal.arguments.serial ?? "").toUpperCase() } }));
+    } catch (reason) {
+      setProposal(proposal.id, { status: "error", message: reason instanceof Error ? reason.message : "The change was not saved." });
+    }
+  }
+
+  async function discardProposal(proposal: Proposal) {
+    try {
+      await sendJson("DELETE", `/api/copilot/chat/proposals/${proposal.id}`);
+    } catch {
+      // Already used or expired: either way nothing will be saved.
+    }
+    setProposal(proposal.id, { status: "discarded" });
+  }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -68,6 +103,7 @@ export default function ChatPanel() {
           role: "assistant",
           content: data.reply || "The local model returned an empty response. Try a tool-focused question.",
           tools: data.tools_used,
+          proposals: data.proposals ?? [],
         },
       ]);
     } catch (reason) {
@@ -109,10 +145,10 @@ export default function ChatPanel() {
           <div className="chat-model-row">
             <span className="chat-model-label">Model</span>
             <strong className="chat-model-name">{modelsLoading ? "Loading…" : model || "None available"}</strong>
-            <a className="chat-settings-link" href="#settings" onClick={() => setOpen(false)}>Change in Settings</a>
+            <a className="copy-button chat-settings-link" href="#settings" onClick={() => setOpen(false)}>Change in Settings</a>
           </div>
           {!modelsLoading && modelError && <div className="chat-error" role="alert">{modelError} Open Settings to check the model.</div>}
-          <div className="chat-privacy-note">Messages and MCP requests stay on this computer. This assistant can read records and prepare drafts; it cannot send or update anything.</div>
+          <div className="chat-privacy-note">Messages and MCP requests stay on this computer. This assistant can read records, prepare drafts, and propose record changes that are saved only when you click Apply. It never sends anything.</div>
           <div className="chat-messages" aria-live="polite" aria-relevant="additions text">
             {messages.length === 0 && (
               <div className="chat-empty">
@@ -124,8 +160,9 @@ export default function ChatPanel() {
             {messages.map((item, index) => (
               <article className={`chat-message ${item.role}`} key={`${item.role}-${index}`}>
                 <span className="chat-role">{item.role === "user" ? "You" : "Copilot"}</span>
-                <p>{item.content}</p>
+                {item.role === "assistant" ? <ChatText text={item.content} /> : <p>{item.content}</p>}
                 {item.tools && item.tools.length > 0 && <small>Used MCP: {item.tools.join(", ")}</small>}
+                {item.proposals?.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} state={proposalStates[proposal.id]} onApply={() => void applyProposal(proposal)} onDiscard={() => void discardProposal(proposal)} />)}
               </article>
             ))}
             {loading && <div className="chat-working" role="status">Checking local records…</div>}
@@ -146,6 +183,66 @@ export default function ChatPanel() {
           </form>
         </section>
       )}
+    </div>
+  );
+}
+
+function ProposalCard({ proposal, state, onApply, onDiscard }: { proposal: Proposal; state?: ProposalState; onApply: () => void; onDiscard: () => void }) {
+  const status = state?.status ?? "pending";
+  return (
+    <div className={`proposal-card ${status}`} role="group" aria-label="Proposed record change">
+      <strong>Proposed change · not saved yet</strong>
+      <p>{proposal.summary}</p>
+      {status === "pending" || status === "error" ? (
+        <div className="proposal-actions">
+          <button className="primary-button" type="button" onClick={onApply}>Apply change</button>
+          <button className="copy-button" type="button" onClick={onDiscard}>Discard</button>
+        </div>
+      ) : null}
+      {status === "applying" && <span className="proposal-status">Saving…</span>}
+      {status === "saved" && <span className="proposal-status saved">✓ Saved and logged: {state?.message}</span>}
+      {status === "discarded" && <span className="proposal-status">Discarded. Nothing was changed.</span>}
+      {status === "error" && <span className="proposal-status error" role="alert">{state?.message}</span>}
+    </div>
+  );
+}
+
+/** Render **bold** spans in one line as React elements (never raw HTML). */
+function inline(text: string, keyPrefix: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((part, index) =>
+    part.startsWith("**") && part.endsWith("**") && part.length > 4
+      ? <strong key={`${keyPrefix}-${index}`}>{part.slice(2, -2)}</strong>
+      : <span key={`${keyPrefix}-${index}`}>{part}</span>,
+  );
+}
+
+/**
+ * Small, safe formatter for the local model's replies: paragraphs, "-", "*", or "1." bullet lists,
+ * and **bold**. Model text is only ever rendered as text nodes, so it cannot inject markup.
+ */
+function ChatText({ text }: { text: string }) {
+  const blocks: { kind: "p" | "ul" | "ol"; lines: string[] }[] = [];
+  for (const raw of text.replace(/\r\n/g, "\n").split("\n")) {
+    const line = raw.trim();
+    if (!line) {
+      blocks.push({ kind: "p", lines: [] });
+      continue;
+    }
+    const bullet = /^[-*•]\s+(.*)$/.exec(line);
+    const numbered = /^\d+[.)]\s+(.*)$/.exec(line);
+    const kind = bullet ? "ul" : numbered ? "ol" : "p";
+    const content = bullet?.[1] ?? numbered?.[1] ?? line.replace(/^#{1,6}\s+/, "");
+    const last = blocks[blocks.length - 1];
+    if (last && last.kind === kind && (kind !== "p" || last.lines.length > 0)) last.lines.push(content);
+    else blocks.push({ kind, lines: [content] });
+  }
+  return (
+    <div className="chat-text">
+      {blocks.filter((block) => block.lines.length > 0).map((block, index) => {
+        if (block.kind === "p") return <p key={index}>{block.lines.map((line, i) => <span key={i}>{i > 0 && <br />}{inline(line, `${index}-${i}`)}</span>)}</p>;
+        const items = block.lines.map((line, i) => <li key={i}>{inline(line, `${index}-${i}`)}</li>);
+        return block.kind === "ul" ? <ul key={index}>{items}</ul> : <ol key={index}>{items}</ol>;
+      })}
     </div>
   );
 }
