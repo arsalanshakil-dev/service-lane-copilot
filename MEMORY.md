@@ -52,7 +52,7 @@ Open `http://localhost:3000`. For stdio MCP hosts, launch `<backend>/.venv/Scrip
 ## Verified state and known gaps
 
 - The source audit found a missing `date` import in the FastAPI mileage request model and a mismatch between the accepted replacement behavior and the missing-mileage-only form; issue #10 corrects both.
-- Regression tests were added under `backend/tests/`; they have not been run because the local command runner fails during setup refresh. Frontend build/browser tests and Ollama/MCP runtime flows remain unverified.
+- Regression tests are under `backend/tests/`; `.github/workflows/verify.yml` runs them and the frontend production build on pull requests and main pushes. The local command runner fails during setup refresh, so no local tests/build or live Ollama/MCP flows have been run. Check GitHub Actions for the workflow result.
 - The acceptance and verification plan is in `SERVICE_LANE_COPILOT_SPEC.md` and `docs/feature-spec-local-ollama-chat.md`. The local agent and chat have not been run in this environment; tool-calling behavior is unverified until exercised with an installed Ollama model.
 - Do not assume the MCP mount, tools, UI, or API are runtime-verified based on source inspection alone.
 - No live OBD-II/CAN integration, dealership history integration, authentication, hosted deployment, or real maintenance catalog exists.
