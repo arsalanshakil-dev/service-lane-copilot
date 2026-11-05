@@ -13,8 +13,8 @@ An OBD-II/CAN adapter is a planned optional source for a later connected version
 ```mermaid
 flowchart LR
     Advisor[Service advisor] -->|serial number, review, edit drafts| Web[Next.js web app\nfrontend/app]
-    Web -->|/api/copilot/* rewrite| API[FastAPI REST API\nbackend/app/main.py]
-    API --> Store[Shared read-only data loader\nbackend/app/data_store.py]
+    Web -->|/api/copilot/* rewrite · GET/PATCH| API[FastAPI REST API\nbackend/app/main.py]
+    API -->|synthetic record reads + local mileage update| Store[Shared synthetic data store\nbackend/app/data_store.py]
     Store --> Data[(250 synthetic records\ndata/vehicles.json)]
     Harness[MCP-compatible agent harness] -->|Streamable HTTP /mcp| MCP[MCP server\nbackend/app/mcp_server.py]
     Harness -->|stdio| Launcher[backend/mcp_stdio.py]
