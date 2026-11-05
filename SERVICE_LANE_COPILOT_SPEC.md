@@ -68,6 +68,16 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Synthetic vehicle records include serial number, make/model/year, recorded odometer mileage and timestamp, service events, and any missing-data indicators.
 - No match, missing mileage, conflicting mileage, or sparse history must be shown as a data limitation; the app must not silently fill gaps.
 
+### Manual mileage updates
+
+- When a known synthetic record has no current mileage, an advisor can enter a non-negative integer mileage, reading date, and source (advisor-observed or customer-reported).
+- A successful update replaces the record's current mileage and stores the ISO date and source in the local synthetic dataset. A later lookup returns the updated value and provenance.
+- The local REST API exposes this update. MCP tools and resources remain read-only.
+- Unknown serial numbers and invalid values do not change the dataset.
+- If the reading conflicts with a recorded service mileage, retain the entered reading with an explicit conflict flag and pause recommendations.
+- A manual current reading does not fill missing mileage in service history. Recommendations remain paused when history lacks evidence needed to support them; the app must explain why and must not infer intervals.
+- This behavior is specified in `docs/feature-spec-manual-mileage.md`.
+
 ### Recommendations
 
 - Recommendation examples and due/coming-up labels are explicit structured data in the synthetic JSON records, not a language model’s guess.
@@ -119,7 +129,10 @@ Before calling the MVP ready, automate these behaviors where practical and recor
 7. Explanations and quotes do not add facts absent from the vehicle record or configured demo rules.
 8. MCP tool/resource discovery works over stdio and Streamable HTTP; unknown serials return an explicit no-record result.
 9. MCP draft tools return unsent drafts and expose no side-effecting operation.
-10. The theme control switches between light and dark, the selected theme is restored on reload, and primary content and controls remain legible in both themes.
+10. A known record with missing current mileage accepts a valid manual update and returns the replacement mileage, date, and source on a subsequent lookup.
+11. Unknown records and invalid manual mileage payloads do not modify the dataset; a value below recorded service mileage is flagged as a conflict.
+12. Incomplete service-history mileage remains missing after a manual current-mileage update and recommendations stay paused without evidence.
+13. MCP remains read-only after the REST mileage update is added.
 
 Review the code changes and evidence for each check before accepting them. A check that was not run is **unverified**, not passed. The existing verification plan defines expected behavior; it is not evidence that implementation has already passed.
 
@@ -181,6 +194,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 
 ## Project files
 
+- `docs/feature-spec-manual-mileage.md` defines manual mileage entry and its evidence/safety boundaries.
 - `AGENTS.md` defines the required spec-first process and safety rules for coding agents.
 - `MEMORY.md` records verified implementation facts and current gaps; it does not override this spec.
 - `docs/feature-spec-template.md` is the template for distinct features.

@@ -1,12 +1,22 @@
 """REST API and local MCP HTTP mount for the synthetic Service Lane Copilot."""
 
 from contextlib import asynccontextmanager
-from typing import Any
+from datetime import date
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
 
-from .data_store import find_vehicle, load_vehicles, search_vehicle_summaries
+from .data_store import find_vehicle, load_vehicles, search_vehicle_summaries, update_vehicle_mileage
 from .mcp_server import mcp_server, mcp_http_app
+
+
+class ManualMileageUpdate(BaseModel):
+    """Advisor-confirmed manual odometer reading for a synthetic record."""
+
+    mileage: int = Field(ge=0)
+    mileage_date: date = Field(alias="mileageDate")
+    mileage_source: Literal["advisor_observed", "customer_reported"] = Field(alias="mileageSource")
 
 
 @asynccontextmanager
@@ -21,9 +31,9 @@ app = FastAPI(
     title="Service Lane Copilot API",
     version="0.1.0",
     description=(
-        "Read-only REST API over the 250-record synthetic vehicle dataset.\n\n"
+        "REST API over the 250-record synthetic vehicle dataset. Search and retrieval are read-only; one local route allows an advisor to update missing mileage.\n\n"
         "## REST API\n"
-        "Use the vehicle routes to search and retrieve synthetic vehicle records. "
+        "Search and retrieve synthetic vehicle records, or enter missing mileage for a known synthetic vehicle. "
         "Unknown serials return 404; no real dealership data is queried.\n\n"
         "## MCP agent access\n"
         "The same dataset is available to MCP-compatible agents over Streamable HTTP at `/mcp` "
@@ -41,7 +51,7 @@ app = FastAPI(
         },
         {
             "name": "Vehicles",
-            "description": "Read-only search and retrieval over synthetic vehicle records.",
+            "description": "Search and retrieval over synthetic records plus an advisor-reviewed local mileage update.",
         },
     ],
     lifespan=lifespan,
@@ -70,6 +80,7 @@ def capabilities() -> dict[str, Any]:
             "health": "/api/health",
             "search_vehicles": "/api/vehicles?q={query}&limit={limit}",
             "get_vehicle": "/api/vehicles/{serial}",
+            "update_missing_mileage": "PATCH /api/vehicles/{serial}/mileage",
         },
         "mcp": {
             "streamable_http": "/mcp",
@@ -106,6 +117,27 @@ def get_vehicle(serial: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
     return vehicle
 
+
+@app.patch("/api/vehicles/{serial}/mileage", tags=["Vehicles"])
+def update_manual_mileage(serial: str, payload: ManualMileageUpdate) -> dict[str, Any]:
+    """Replace missing current mileage in a synthetic record with advisor-confirmed data."""
+    if payload.mileage_date > date.today():
+        raise HTTPException(status_code=422, detail="Mileage date cannot be in the future.")
+    try:
+        vehicle = update_vehicle_mileage(
+            serial,
+            payload.mileage,
+            payload.mileage_date.isoformat(),
+            payload.mileage_source,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Could not save the synthetic mileage update.") from exc
+
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
+    return vehicle
 
 # MCP endpoint: http://127.0.0.1:8000/mcp
 app.mount("/mcp", mcp_http_app)
