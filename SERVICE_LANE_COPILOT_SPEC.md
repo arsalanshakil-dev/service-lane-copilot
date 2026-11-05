@@ -31,7 +31,7 @@ Expose the synthetic dataset to any MCP-compatible agent harness through standar
 Every synthetic vehicle record carries a clearly labeled, deterministic telemetry sample for UI demonstration. This is generated fixture data only: there is no adapter connection, CAN communication, live vehicle reading, or physical vehicle access.
 
 - Each of the 250 records has four streams: engine RPM (rpm), vehicle speed (km/h), coolant temperature (°C), and calculated engine load (%).
-- Each stream contains four numeric samples with timestamps in a fixed four-minute demonstration window. Record metadata declares mode/status `simulated`, source `synthetic_demo_generator`, and a notice that no adapter or physical vehicle is connected.
+- Each stream contains four numeric samples with timestamps in a fixed sample window. Record metadata declares mode/status `simulated`, source `synthetic_demo_generator`, and a notice that no adapter or physical vehicle is connected.
 - The existing vehicle REST response and MCP record/resource responses expose the telemetry read-only. There is no telemetry write route or separate external transport.
 - The vehicle page displays a “SIMULATED” badge, unit, latest sample/time, and a trend chart. Missing or empty streams display an explicit unavailable message.
 - The Ollama assistant and MCP instructions must describe telemetry as simulated whenever discussed. It is not current mileage, dealership service history, a diagnostic result, or evidence for a service recommendation.
