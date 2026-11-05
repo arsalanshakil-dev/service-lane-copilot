@@ -46,7 +46,9 @@ service-lane-copilot/
 │   └── migrations/                   # Postgres schema, RLS, and grants
 ├── docs/
 │   ├── feature-spec-template.md      # Template for a new feature spec
-│   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits\n│   ├── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries\n│   └── feature-spec-supabase-database.md # Supabase runtime store and seed behavior
+│   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits
+│   ├── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
+│   └── feature-spec-supabase-database.md # Supabase runtime store and seed behavior
 ├── backend/
 │   ├── .env.example                  # Backend-only Supabase environment template
 │   ├── requirements.txt              # Pinned Python dependencies
@@ -77,23 +79,26 @@ The tree shows the main source files and intentionally omits generated folders s
 
 | File | What it contains |
 | --- | --- |
-| `AGENTS.md` | Required workflow, safety boundaries, and documentation upkeep rules for coding agents. |\n| `.github/workflows/verify.yml` | Runs backend regression checks and the frontend production build for pull requests and main pushes. |
+| `AGENTS.md` | Required workflow, safety boundaries, and documentation upkeep rules for coding agents. |
+| `.github/workflows/verify.yml` | Runs backend regression checks and the frontend production build for pull requests and main pushes. |
 | `CONTEXT.md` | Short onboarding explanation of the project and links to the authoritative docs. |
 | `MEMORY.md` | Verified architecture, local run commands, current implementation status, and known gaps. |
 | `SERVICE_LANE_COPILOT_SPEC.md` | Product requirements, boundaries, acceptance criteria, and the verification plan. |
-| `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |\n| `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
+| `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |
+| `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
 | `README.md` | Setup instructions, architecture diagram, folder tree, file guide, endpoints, and sample serial numbers. |
 | `data/vehicles.json` | The 250 fictional seed records; loaded into Supabase by the seed command and never read at runtime. |
 | `supabase/config.toml` and `supabase/migrations/` | Local Supabase configuration and private vehicle table schema with row-level security. |
 | `docs/feature-spec-supabase-database.md` | Approved Supabase runtime, credentials, seed, and failure behavior. |
 | `backend/seed_supabase.py` | Idempotently loads the synthetic JSON fixture into `public.vehicle_records`. |
 | `backend/app/data_store.py` | Supabase runtime reads and advisor mileage updates. |
-| `backend/requirements.txt` | Pinned Python packages for FastAPI, Uvicorn, and MCP. |
+| `backend/requirements.txt` | Pinned Python packages for FastAPI, Uvicorn, MCP, Supabase, and environment loading. |
 | `backend/mcp_stdio.py` | Entry point for MCP clients that start the server as a local subprocess. |
 | `backend/app/main.py` | FastAPI REST, local-chat and mileage endpoints, and mounted Streamable HTTP MCP endpoint. |
 | `backend/app/mcp_server.py` | MCP server setup, read-only tools, resources, and draft responses exposed to both harnesses and in-app chat. |
 | `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions. |
-| `backend/app/data_store.py` | Shared synthetic JSON loader, validation, and local REST mileage update. |\n| `backend/tests/test_mileage.py` | Standard-library regression checks for replacement, provenance, conflict, and API validation. |
+| `backend/tests/test_supabase_store.py` | Database adapter, fixture seed validation, and migration access checks. |
+| `backend/tests/test_mileage.py` | Standard-library regression checks for replacement, provenance, conflict, and API validation. |
 | `frontend/package.json` | Frontend scripts and pinned direct dependencies. |
 | `frontend/package-lock.json` | Exact resolved frontend dependency versions for repeatable npm installs. |
 | `frontend/next.config.ts` | Rewrite from browser `/api/copilot/*` requests to the local FastAPI `/api/*` routes. |
