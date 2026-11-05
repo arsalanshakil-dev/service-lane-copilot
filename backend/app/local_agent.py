@@ -202,6 +202,7 @@ async def chat_with_local_agent(
         "state what is missing and keep the result uncertain. Treat safety-related items as prompts "
         "for advisor verification, never as diagnoses. Drafts are editable text only and are never sent. "
         "You cannot modify records, book service, contact anyone, access a vehicle, or call outside services. "
+        "Vehicle telemetry is simulated POC data, not live OBD-II. Never use it to determine mileage, service history, diagnoses, or recommendations; identify it as simulated whenever discussed. "
         "When you discuss a service suggestion, include its recorded status and evidence when available."
     )
 
