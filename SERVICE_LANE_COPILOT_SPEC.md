@@ -11,7 +11,7 @@ This MVP uses synthetic vehicles, service histories, and clearly labeled example
 - **Frontend:** Next.js App Router with React and TypeScript in `frontend/`.
 - **Backend:** Python FastAPI REST API plus a standard MCP server in `backend/`.
 - **Backend docs:** Swagger UI at `/docs`, OpenAPI JSON at `/openapi.json`, and interface summary at `/api/capabilities`.
-- **Dataset:** 250 synthetic records in `data/vehicles.json`, loaded by the backend.
+- **Dataset:** 250 synthetic records and simulated-only telemetry streams in `data/vehicles.json`, loaded by the backend.
 - **Manual mileage:** advisor-reviewed `PATCH /api/vehicles/{serial}/mileage` replaces the current value in the local synthetic dataset; this is the only REST write route, and MCP remains read-only.
 - **API connection:** Next.js rewrites `/api/copilot/*` to the local FastAPI service, avoiding a separate browser CORS configuration for the demo.
 - **Agent connection:** MCP Streamable HTTP at `/mcp` and stdio for local subprocess-based agent harnesses.
@@ -26,16 +26,26 @@ Expose the synthetic dataset to any MCP-compatible agent harness through standar
 - Draft tools return text only. They cannot send messages, submit requests, update records, book appointments, access a physical vehicle, or reach an external service.
 - The HTTP endpoint binds to localhost for the demo. Remote access requires a separately reviewed authentication and deployment setup; do not publicly expose this endpoint as-is.
 
-## Planned vehicle data source: OBD-II/CAN
+## Simulated OBD-II telemetry for the POC
 
-For a later dealership pilot, add an optional read-only vehicle connection through an OBD-II adapter using CAN where the vehicle supports it. Read the VIN when available, then use an approved VIN decoder/catalog to resolve make, model, and year. Prefill an odometer reading only when the vehicle and adapter expose a supported value, then match the vehicle to dealership history.
+Every synthetic vehicle record carries a clearly labeled, deterministic telemetry sample for UI demonstration. This is generated fixture data only: there is no adapter connection, CAN communication, live vehicle reading, or physical vehicle access.
 
-- Treat the VIN read from the vehicle as the vehicle identifier; confirm how it maps to the dealership’s “serial number” field before using it as the record lookup key.
-- Read only fields the vehicle and adapter actually expose. VIN retrieval and odometer retrieval have different support; do not assume every vehicle provides odometer over generic OBD-II. Some fields may need an approved manufacturer-specific method or may be unavailable.
-- OBD-II vehicle data does not replace dealership service history. Keep service events sourced from dealership records or another approved history source.
-- Keep each value’s source, retrieval time, units, and availability status. If the OBD reading is missing, stale, or conflicts with the dealership record, show the discrepancy and pause mileage-based recommendations until the advisor resolves it.
-- Allow only approved read requests. Do not send coding, configuration, reset, actuation, or other write/control commands to the vehicle.
-- The current synthetic demo has no OBD adapter connection and does not read a physical vehicle.
+- Each of the 250 records has four streams: engine RPM (rpm), vehicle speed (km/h), coolant temperature (°C), and calculated engine load (%).
+- Each stream contains four numeric samples with timestamps in a fixed four-minute demonstration window. Record metadata declares mode/status `simulated`, source `synthetic_demo_generator`, and a notice that no adapter or physical vehicle is connected.
+- The existing vehicle REST response and MCP record/resource responses expose the telemetry read-only. There is no telemetry write route or separate external transport.
+- The vehicle page displays a “SIMULATED” badge, unit, latest sample/time, and a trend chart. Missing or empty streams display an explicit unavailable message.
+- The Ollama assistant and MCP instructions must describe telemetry as simulated whenever discussed. It is not current mileage, dealership service history, a diagnostic result, or evidence for a service recommendation.
+- Updating advisor-confirmed mileage must preserve telemetry; telemetry must never change mileage, history, completeness, or recommendations.
+- Synthetic telemetry exists to demonstrate a future data display only. Do not call it connected/live OBD-II data.
+
+## Future physical OBD-II/CAN source
+
+A later dealership pilot may add an optional read-only OBD-II adapter using CAN where supported. This requires a separate approved spec and adapter/vehicle coverage decisions.
+
+- Read VIN only when the adapter and vehicle expose it, then use an approved VIN decoder/catalog to resolve make, model, and year.
+- Odometer availability varies; do not assume generic OBD-II exposes it. Keep physical values' source, retrieval time, units, and availability status.
+- Physical vehicle data does not replace dealership service history. Unsupported, stale, or conflicting values require advisor resolution.
+- Send only approved read requests. Never issue coding, configuration, reset, actuation, or other write/control commands to a vehicle.
 
 ## User and problem
 
@@ -48,7 +58,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 
 1. Advisor enters a vehicle serial number on an intuitive web page.
 2. The app searches the synthetic dealership service-record dataset.
-3. For a match in the demo, the app displays synthetic vehicle details, recorded mileage, service history, and data timing. A later connected version may prefill vehicle identity and available odometer data from an OBD-II/CAN adapter.
+3. For a match in the demo, the app displays synthetic vehicle details, recorded mileage, service history, data timing, and clearly marked simulated OBD-II telemetry trends. A later connected version may prefill vehicle identity and supported odometer data from a physical adapter.
 4. The Python API returns the selected vehicle’s structured, synthetic recommendation examples from the JSON dataset, including status, demo rule text, and record evidence. The app does not calculate real service intervals.
 5. The app flags safety-related items distinctly and tells the advisor to verify them against an approved source.
 6. The app can prepare editable drafts of a customer explanation, quote, and follow-up message. Drafts are never sent or booked automatically.
@@ -68,6 +78,16 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - A serial-number lookup returns either one matching synthetic vehicle or a clear no-match result.
 - Synthetic vehicle records include serial number, make/model/year, recorded odometer mileage and timestamp, service events, and any missing-data indicators.
 - No match, missing mileage, conflicting mileage, or sparse history must be shown as a data limitation; the app must not silently fill gaps.
+
+### Simulated OBD-II telemetry
+
+- All 250 synthetic records include four read-only sample streams: engine RPM (rpm), vehicle speed (km/h), coolant temperature (°C), and calculated engine load (%).
+- Each stream contains four timestamped numeric samples in a fixed demo window. All values are deterministic and synthetic; no physical OBD-II adapter is connected.
+- Vehicle REST and MCP record retrieval expose the telemetry with `mode: simulated`, `status: simulated`, the synthetic source, and a no-adapter notice.
+- The web page labels the panel “SIMULATED,” shows the unit, latest reading and time, and a trend chart. An absent/empty stream has an explicit unavailable state.
+- Telemetry is for display only. It cannot update mileage/history, affect recommendation status, diagnose a vehicle, or serve as service evidence.
+- The local assistant and MCP instructions must identify the values as simulated and not use them as evidence for a service recommendation.
+- See `docs/feature-spec-simulated-obd-telemetry.md`.
 
 ### Manual mileage updates
 
@@ -137,6 +157,7 @@ Before calling the MVP ready, automate these behaviors where practical and recor
 13. Ollama unavailable, no installed model, invalid tool, and MCP tool failure produce clear errors without making external calls.
 14. Chat cannot send drafts, write a vehicle record, book service, or control a vehicle; history is not persisted server-side.
 15. Manual mileage can replace the current value with date and source for a known serial; invalid/future values are rejected, unknown serials return 404, and conflicting/incomplete evidence keeps recommendations paused.
+16. Every known synthetic vehicle returns the four deterministic simulated telemetry streams with units/timestamps; UI/MCP/chat label them simulated, missing data stays unavailable, and telemetry cannot alter mileage, history, or recommendations.
 
 Review the code changes and evidence for each check before accepting them. A check that was not run is **unverified**, not passed. The existing verification plan defines expected behavior; it is not evidence that implementation has already passed.
 
@@ -190,7 +211,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - MCP-compatible agent harnesses can access the same synthetic records through read-only tools/resources over stdio or local Streamable HTTP.
 - The released demo uses 250 synthetic vehicle records and fictional service histories/rules.
 - Demo lookup uses a synthetic vehicle serial. A connected version may read a VIN through OBD-II/CAN and must map it to the dealership’s vehicle identifier before matching. A missing record offers a dealership-record intake draft or an outside-history request draft.
-- A future connected workflow may prefill vehicle identity and available mileage from OBD-II/CAN; the current demo has no physical adapter integration. Service history remains a separate source.
+- The synthetic POC displays four simulated OBD-II telemetry streams on every record; there is no physical adapter integration. The streams are not service evidence and do not affect recommendations. A future physical OBD-II/CAN workflow requires a separate spec. Service history remains a separate source.
 - Recommendations show service item, due/coming-up status, mileage or history evidence, and a customer-friendly explanation.
 - Safety-related items are flagged for advisor verification.
 - Customer explanations, quote text, follow-ups, registration requests, and outside-history requests are drafts only; nothing is sent or submitted.
