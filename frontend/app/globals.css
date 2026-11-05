@@ -320,3 +320,19 @@ html[data-theme="dark"] .copy-button.meta-action,html[data-theme="dark"] a.copy-
 .rules-panel .records-table-wrap{box-shadow:none;margin-top:4px}
 .warning-banner code{font-size:12px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px}
 html[data-theme="dark"] .rule-tag{background:#1f3a2e;color:#a8dcc0}
+
+/* Scrollable telemetry recording (issue #52) */
+.obd-controls{display:flex;flex-direction:column;gap:8px;margin:10px 0 12px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);outline:none}
+.obd-controls:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.obd-zoom{display:flex;flex-wrap:wrap;gap:6px}
+.obd-zoom .copy-button.active{background:var(--green);border-color:var(--green);color:#fff}
+.obd-scroll{display:flex;align-items:center;gap:8px}
+.obd-scroll input[type=range]{flex:1;min-width:0;accent-color:var(--green);height:28px}
+.obd-scroll .copy-button{min-width:34px;justify-content:center}
+.obd-scroll .copy-button:disabled{opacity:.45;cursor:not-allowed}
+.obd-window-label{margin:0;font-size:12px;color:var(--muted)}
+.obd-chart{cursor:crosshair;touch-action:none}
+.obd-cursor{stroke:var(--amber);stroke-width:.6;vector-effect:non-scaling-stroke}
+html[data-theme="dark"] .obd-controls{background:#18221d;border-color:#34453a}
+.copy-button.meta-action{border:1px solid #e1e7e3;background:#fff;border-radius:6px;font-weight:700}
+html[data-theme="dark"] .copy-button.meta-action{border-color:#34453a;background:#202c26}

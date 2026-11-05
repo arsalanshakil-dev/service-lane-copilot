@@ -20,6 +20,7 @@ from .data_store import (
     update_vehicle_mileage,
 )
 from .mcp_server import mcp_server, mcp_http_app
+from .telemetry_sim import simulated_recording
 from .rules_engine import (
     RuleConflict,
     RulesUnavailable,
@@ -244,6 +245,7 @@ def capabilities() -> dict[str, Any]:
             "update_manual_mileage": "PATCH /api/vehicles/{serial}/mileage",
             "record_completed_service": "POST /api/vehicles/{serial}/services",
             "add_vehicle": "POST /api/vehicles",
+            "simulated_telemetry_recording": "GET /api/vehicles/{serial}/telemetry (5 min, 1 Hz, simulated)",
             "maintenance_rules": "GET|POST /api/rules; PUT /api/rules/{id} (no delete; disable instead)",
             "edit_vehicle_details": "PATCH /api/vehicles/{serial}",
             "edit_history_entry": "PUT /api/vehicles/{serial}/history/{index} (history entries cannot be deleted)",
@@ -286,6 +288,18 @@ def search_vehicles(
     """
     total, page = list_vehicle_summaries(q, limit, offset)
     return {"count": len(page), "total": total, "limit": limit, "offset": offset, "vehicles": page}
+
+
+@app.get("/api/vehicles/{serial}/telemetry", tags=["Vehicles"])
+def get_telemetry_recording(serial: str) -> dict[str, Any]:
+    """Simulated 5-minute OBD-II recording (1 Hz) for a known vehicle. Generated on request; never stored.
+
+    POC data only: not live OBD-II, mileage, service history, diagnostic, or recommendation evidence.
+    """
+    vehicle = find_vehicle(serial)
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
+    return simulated_recording(vehicle)
 
 
 @app.get("/api/vehicles/{serial}", tags=["Vehicles"])

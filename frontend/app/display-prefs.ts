@@ -137,3 +137,8 @@ export function formatDateTime(iso: string, timeZone: string): string {
 export function formatTimeOfDay(iso: string, timeZone: string): string {
   return formatWith(iso, timeZone, { hour: "numeric", minute: "2-digit" });
 }
+
+/** "9:27:41 AM GMT+5" in the chosen time zone (used for second-level telemetry). */
+export function formatClockTime(iso: string, timeZone: string): string {
+  return formatWith(iso, timeZone, { hour: "numeric", minute: "2-digit", second: "2-digit" });
+}

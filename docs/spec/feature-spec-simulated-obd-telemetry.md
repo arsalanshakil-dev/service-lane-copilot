@@ -30,6 +30,16 @@ Updated: 2026-11-05
 - Physical OBD-II adapter/CAN connection, ECU communication, vehicle commands, live telemetry, external services, diagnostic trouble codes, fault diagnosis, maintenance advice, and use of telemetry for recommendations or mileage.
 - Replacing synthetic dealership service history or the advisor-approved manual mileage process.
 
+## Scrollable recording (issue #52, 2026-11-06)
+
+User request: scroll through recorded samples, because a real connection would record seconds to minutes of data. Approved defaults: 5 minutes at 1 sample per second.
+
+- `GET /api/vehicles/{serial}/telemetry` returns a **simulated recording**: 300 samples per stream (1 Hz, 5 minutes) for the same four streams and units, ending at the record's `capturedAt`. Values follow a short-drive profile (idle → pull away → cruise → slow down → stop → short drive) with small deterministic variation seeded from the serial, so repeat calls return identical data. It is generated on request; nothing new is stored. Unknown serial → 404. Vehicles without stored telemetry still get a recording (it is simulated for every known vehicle).
+- Value ranges stay within the existing checks: RPM 0–3,600, speed 0–100 km/h, coolant 0–120 °C, load 0–100 %.
+- The telemetry panel shares one time window across the four charts: window sizes 15 s, 30 s, 1 min, 5 min; scroll with a slider, ◀ ▶ buttons, or arrow keys; hover shows the value and time in the Settings time zone; each chart shows min / max / average for the window. If the recording cannot load, the stored 4-sample streams are shown with a note.
+- The stored 4-sample `obdTelemetry` in each record is unchanged (still returned by REST/MCP record retrieval).
+- Same safety rules: labelled simulated everywhere, no adapter or vehicle access, never mileage, service-history, diagnostic, or recommendation evidence. Not exposed as an MCP tool in this change.
+
 ## User workflow
 
 1. Advisor looks up any known synthetic serial number.
