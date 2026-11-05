@@ -116,7 +116,10 @@ function VehicleSummaryPanel({ serial, state, onOpen, onRetry }: { serial: strin
   );
 }
 
-const RECORDS_PAGE_SIZE = 25;
+// Rows per page in Vehicle records (issue #56); the API allows up to 100.
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const DEFAULT_PAGE_SIZE = 25;
+const PAGE_SIZE_STORAGE_KEY = "service-lane-records-page-size";
 
 function SettingsView() {
   const { models, model, setModel, refresh, loading, error } = useAiModel();
@@ -178,6 +181,24 @@ function SettingsView() {
 
 function RecordsView({ onOpen }: { onOpen: (serial: string) => void }) {
   const [adding, setAdding] = useState(false);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
+      if (PAGE_SIZE_OPTIONS.includes(saved)) setPageSize(saved);
+    } catch {
+      // Storage unavailable: keep the default.
+    }
+  }, []);
+  function changePageSize(size: number) {
+    setPageSize(size);
+    setOffset(0);
+    try {
+      window.localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(size));
+    } catch {
+      // The choice still applies to this page view.
+    }
+  }
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [offset, setOffset] = useState(0);
@@ -208,7 +229,7 @@ function RecordsView({ onOpen }: { onOpen: (serial: string) => void }) {
       setLoading(true);
       setError("");
       try {
-        const params = new URLSearchParams({ q: submitted, limit: String(RECORDS_PAGE_SIZE), offset: String(offset) });
+        const params = new URLSearchParams({ q: submitted, limit: String(pageSize), offset: String(offset) });
         const response = await fetch(`/api/copilot/vehicles?${params}`, { headers: { Accept: "application/json" } });
         // The dev proxy answers in plain text when the backend is down; never surface a JSON parse error.
         const text = await response.text();
@@ -232,7 +253,7 @@ function RecordsView({ onOpen }: { onOpen: (serial: string) => void }) {
     return () => {
       cancelled = true;
     };
-  }, [submitted, offset]);
+  }, [submitted, offset, pageSize]);
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -242,7 +263,9 @@ function RecordsView({ onOpen }: { onOpen: (serial: string) => void }) {
 
   const total = page?.total ?? 0;
   const first = total === 0 ? 0 : offset + 1;
-  const last = Math.min(offset + RECORDS_PAGE_SIZE, total);
+  const last = Math.min(offset + pageSize, total);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.floor(offset / pageSize) + 1;
 
   return (
     <section className="records-view" aria-labelledby="records-title">
@@ -291,11 +314,22 @@ function RecordsView({ onOpen }: { onOpen: (serial: string) => void }) {
           </table>
         </div>
       )}
-      {total > RECORDS_PAGE_SIZE && (
+      {total > 0 && (
         <nav className="records-pager" aria-label="Records pages">
-          <button className="copy-button" type="button" disabled={offset === 0 || loading} onClick={() => setOffset(Math.max(0, offset - RECORDS_PAGE_SIZE))}>← Previous</button>
-          <span>Page {Math.floor(offset / RECORDS_PAGE_SIZE) + 1} of {Math.ceil(total / RECORDS_PAGE_SIZE)}</span>
-          <button className="copy-button" type="button" disabled={last >= total || loading} onClick={() => setOffset(offset + RECORDS_PAGE_SIZE)}>Next →</button>
+          <label className="page-size">Rows per page
+            <select value={pageSize} onChange={(event) => changePageSize(Number(event.target.value))} disabled={loading}>
+              {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </label>
+          {pageCount > 1 && (
+            <div className="pager-buttons">
+              <button className="copy-button" type="button" disabled={offset === 0 || loading} onClick={() => setOffset(0)} aria-label="First page">« First</button>
+              <button className="copy-button" type="button" disabled={offset === 0 || loading} onClick={() => setOffset(Math.max(0, offset - pageSize))}>← Previous</button>
+              <span>Page {currentPage} of {pageCount}</span>
+              <button className="copy-button" type="button" disabled={last >= total || loading} onClick={() => setOffset(offset + pageSize)}>Next →</button>
+              <button className="copy-button" type="button" disabled={last >= total || loading} onClick={() => setOffset((pageCount - 1) * pageSize)} aria-label="Last page">Last »</button>
+            </div>
+          )}
         </nav>
       )}
     </section>
