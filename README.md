@@ -16,7 +16,7 @@ flowchart LR
     Web -->|/api/copilot/* rewrite| API[FastAPI REST and chat API\nbackend/app/main.py]
     API -->|lookup and advisor mileage update| Store[Supabase data adapter\nbackend/app/data_store.py]
     Store --> Data[(Supabase Postgres\npublic.vehicle_records)]
-    Seed[Seed command\nbackend/seed_supabase.py] -->|250 synthetic fixture records| Data
+    Seed[Seed command\nbackend/seed_supabase.py] -->|1,000 synthetic fixture records| Data
     Fixture[(data/vehicles.json\nseed fixture only)] --> Seed
     API --> Agent[Local agent loop\nbackend/app/local_agent.py]
     Agent -->|HTTP loopback only · /api/chat| Ollama[Local Ollama\n127.0.0.1:11434]
@@ -45,7 +45,7 @@ service-lane-copilot/
 ├── README.md                         # Setup, architecture, and folder map
 ├── SERVICE_LANE_COPILOT_SPEC.md      # Requirements and acceptance criteria
 ├── data/
-│   └── vehicles.json                 # 250 synthetic seed fixture records
+│   └── vehicles.json                 # 1,000 synthetic seed fixture records
 ├── supabase/
 │   ├── config.toml                   # Local Supabase project configuration
 │   └── migrations/                   # Postgres schema, RLS, and grants
@@ -59,6 +59,7 @@ service-lane-copilot/
 ├── backend/
 │   ├── .env.example                  # Backend-only Supabase environment template
 │   ├── requirements.txt              # Pinned Python dependencies
+│   ├── generate_synthetic_vehicles.py # Repeatable fictional record generator
 │   ├── seed_supabase.py              # Idempotent synthetic fixture loader
 │   ├── mcp_stdio.py                  # Local stdio MCP launcher
 │   ├── tests/
@@ -100,7 +101,8 @@ The tree shows the main source files and intentionally omits generated folders s
 | `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
 | `docs/feature-spec-record-service.md` | Recording a completed service: history event, Completed status on a stored recommendation, odometer update, and limits. |
 | `README.md` | Setup instructions, architecture diagram, folder tree, file guide, endpoints, and sample serial numbers. |
-| `data/vehicles.json` | The 250 fictional seed records; loaded into Supabase by the seed command and never read at runtime. |
+| `data/vehicles.json` | The 1,000 fictional seed records; loaded into Supabase by the seed command and never read at runtime. |
+| `backend/generate_synthetic_vehicles.py` | Repeatable generator (fixed seed) for fictional records DEMO-0251…DEMO-1000; leaves the original 250 unchanged. |
 | `supabase/config.toml` and `supabase/migrations/` | Local Supabase configuration and private vehicle table schema with row-level security. |
 | `docs/feature-spec-local-ai-assist.md` | Local AI customer drafts and AI-suggested service items, with grounding and validation guardrails. |
 | `docs/feature-spec-supabase-database.md` | Approved Supabase runtime, credentials, seed, and failure behavior. |
@@ -111,6 +113,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `backend/app/main.py` | FastAPI REST, local-chat and mileage endpoints, and mounted Streamable HTTP MCP endpoint. |
 | `backend/app/mcp_server.py` | MCP server setup, read-only tools, resources, and draft responses exposed to both harnesses and in-app chat. |
 | `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions. |
+| `backend/tests/test_synthetic_generator.py` | Generator checks: fixture matches the generator, consistent mileage and recommendations, even scenario mix, seed validation. |
 | `backend/tests/test_supabase_store.py` | Database adapter, fixture seed validation, and migration access checks. |
 | `backend/app/ai_assist.py` | Local Ollama customer drafts and AI suggestions; drops suggestions without cited history or with prices, intervals, or duplicates. |
 | `backend/tests/test_ai_assist.py` | AI draft and suggestion checks: validation rules, backend-built evidence, limited records, 404/503/504/502 mapping, and no writes. |
@@ -156,7 +159,7 @@ supabase db reset
 ```
 
 3. Copy `backend/.env.example` to `backend/.env`. Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` to the local API URL and local secret/service-role key printed by `supabase status`.
-4. From `backend/`, install requirements and run `python seed_supabase.py`. The command upserts the 250 synthetic fixtures and can be rerun safely.
+4. From `backend/`, install requirements and run `python seed_supabase.py`. The command upserts the 1,000 synthetic fixtures and can be rerun safely; it refreshes existing rows from the fixture. Use `python seed_supabase.py --keep-existing` to add missing records without overwriting changes saved through the app. To regenerate the fixture, run `python generate_synthetic_vehicles.py`.
 
 ### Hosted Supabase project
 

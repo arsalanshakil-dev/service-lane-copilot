@@ -159,7 +159,7 @@ def create_record_request_draft(
 def demo_guide() -> str:
     """Describe the dataset boundaries and recommendation safety rules."""
     return (
-        "Service Lane Copilot MCP demo guide. All 250 vehicle records and recommendation rules are synthetic. "
+        "Service Lane Copilot MCP demo guide. All 1,000 vehicle records and recommendation rules are synthetic. "
         "Vehicle telemetry fields are simulated POC samples only, not live OBD-II readings and not service or recommendation evidence. Use get_vehicle_record to inspect dealership-history evidence. Unknown, missing, stale, or conflicting data must remain uncertain. "
         "Safety-related items are verification prompts, not diagnoses. Service history is synthetic and is not retrieved "
         "from OBD-II/CAN. Draft tools never send messages or change records."

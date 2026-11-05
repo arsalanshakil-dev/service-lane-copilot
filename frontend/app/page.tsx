@@ -436,7 +436,7 @@ export default function Home() {
         <div className="dealer-switcher"><span className="dealer-icon">N</span><span className="dealer-copy"><strong>Northside Motors</strong><small>Service department</small></span><span className="chevron">⌄</span></div>
         <p className="nav-label">WORKSPACE</p>
         <nav aria-label="Main navigation"><a className="nav-item active" href="#main"><span className="nav-icon">⌕</span> Service lane</a><a className="nav-item muted" href="#demo-note"><span className="nav-icon">▤</span> Vehicle records <span className="soon">DEMO</span></a></nav>
-        <div className="sidebar-bottom"><div className="demo-card"><span className="demo-spark">✳</span><strong>Demo workspace</strong><p>250 fictional vehicle records with example service histories and rules.</p><a href="#demo-note">About this demo <span>↗</span></a></div><div className="advisor-profile"><span className="avatar">JD</span><span><strong>Jordan Davis</strong><small>Service advisor</small></span><span className="more">···</span></div></div>
+        <div className="sidebar-bottom"><div className="demo-card"><span className="demo-spark">✳</span><strong>Demo workspace</strong><p>1,000 fictional vehicle records with example service histories and rules.</p><a href="#demo-note">About this demo <span>↗</span></a></div><div className="advisor-profile"><span className="avatar">JD</span><span><strong>Jordan Davis</strong><small>Service advisor</small></span><span className="more">···</span></div></div>
       </aside>
 
       <main id="main" className="main-content">

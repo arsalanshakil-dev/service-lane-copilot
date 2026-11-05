@@ -81,7 +81,7 @@ app = FastAPI(
     title="Service Lane Copilot API",
     version="0.1.0",
     description=(
-        "REST API and local Ollama chat over Supabase-backed synthetic vehicle records. The 250-record JSON file is a seed fixture only.\n\n"
+        "REST API and local Ollama chat over Supabase-backed synthetic vehicle records. The 1,000-record JSON file is a seed fixture only.\n\n"
         "## REST API and local chat\n"
         "Vehicle search and retrieval use synthetic records. The app chat uses only local Ollama at 127.0.0.1:11434 and the registered MCP tools/resources. "
         "Unknown serials return 404; no real dealership data is queried.\n\n"

@@ -96,7 +96,7 @@ class SimulatedObdTelemetryTests(unittest.TestCase):
         self.client_patch.stop()
 
     def test_all_synthetic_records_have_valid_simulated_streams(self) -> None:
-        self.assertEqual(len(self.vehicles), 250)
+        self.assertEqual(len(self.vehicles), 1000)
         for serial, vehicle in self.vehicles.items():
             with self.subTest(serial=serial):
                 telemetry = vehicle["obdTelemetry"]
