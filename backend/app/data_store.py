@@ -78,9 +78,6 @@ def update_vehicle_mileage(
         current = vehicles.get(normalized)
         if current is None:
             return None
-        if current.get("mileage") is not None:
-            raise ValueError("Manual entry is only available when current mileage is missing.")
-
         history_miles = []
         for event in current.get("history", []):
             raw_mileage = str(event.get("mileage", ""))
