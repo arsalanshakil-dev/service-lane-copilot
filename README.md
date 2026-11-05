@@ -6,7 +6,7 @@ Service Lane Copilot is a synthetic-data demo for dealership service advisors. T
 
 All vehicle details, service events, mileage, recommendations, and maintenance thresholds are fictional demo content. Do not use the demo rules to make real maintenance decisions. No real dealership systems, customers, or outside history services are connected.
 
-An OBD-II/CAN adapter is a planned optional source for a later connected version. It may provide the vehicle VIN; an approved VIN decoder/catalog can resolve make, model, and year. Odometer availability varies by vehicle and adapter, so the app must handle unavailable readings explicitly. OBD data does not provide dealership service history; that remains a separate data source. The current demo does not connect to a vehicle.
+The POC adds four synthetic telemetry streams to every vehicle record (engine RPM, vehicle speed, coolant temperature, and calculated engine load), each with timestamped demo samples. The app labels them SIMULATED, shows trends in the vehicle view, and exposes them through existing REST/MCP record reads. No OBD-II adapter or physical vehicle is connected. These values are not mileage, service history, diagnostics, or recommendation evidence. A physical adapter remains future work and requires its own approved spec.
 
 ## Architecture at a glance
 
@@ -15,6 +15,7 @@ flowchart LR
     Advisor[Service advisor] -->|serial number, review, edit drafts| Web[Next.js web app and chat\nfrontend/app]
     Web -->|/api/copilot/* rewrite| API[FastAPI REST and chat API\nbackend/app/main.py]
     API -->|lookup and advisor mileage update| Store[Shared synthetic data loader and mileage writer\nbackend/app/data_store.py]
+    API -->|vehicle record with simulated streams| Web
     Store --> Data[(250 synthetic records\ndata/vehicles.json)]
     API --> Agent[Local agent loop\nbackend/app/local_agent.py]
     Agent -->|HTTP loopback only · /api/chat| Ollama[Local Ollama\n127.0.0.1:11434]
@@ -26,7 +27,7 @@ flowchart LR
     API -->|Swagger /docs · OpenAPI /openapi.json| Docs[Backend API docs]
 ```
 
-The web app chat uses only local Ollama and calls the same registered MCP server in-process. The MCP tools and resources use the shared synthetic dataset. Recommendations are explicit demo data with visible history evidence. Drafts are returned for advisor review only; the app does not send or submit them.
+The web app chat uses only local Ollama and calls the same registered MCP server in-process. The MCP tools and resources use the shared synthetic dataset, including clearly labeled simulated telemetry. Telemetry is read-only and does not affect service recommendations. Recommendations are explicit demo data with visible history evidence. Drafts are returned for advisor review only; the app does not send or submit them.
 
 ## Folder structure
 
@@ -40,15 +41,18 @@ service-lane-copilot/
 ├── README.md                         # Setup, architecture, and folder map
 ├── SERVICE_LANE_COPILOT_SPEC.md      # Requirements and acceptance criteria
 ├── data/
-│   └── vehicles.json                 # 250 synthetic vehicle/history records
+│   └── vehicles.json                 # 250 synthetic records and simulated telemetry streams
 ├── docs/
 │   ├── feature-spec-template.md      # Template for a new feature spec
-│   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits\n│   └── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
+│   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits
+│   ├── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
+│   └── feature-spec-simulated-obd-telemetry.md # Simulated telemetry POC scope and safety rules
 ├── backend/
 │   ├── requirements.txt              # Pinned Python dependencies
 │   ├── mcp_stdio.py                  # Local stdio MCP launcher
 │   ├── tests/
-│   │   └── test_mileage.py           # Mileage replacement and API regression checks
+│   │   ├── test_mileage.py           # Mileage replacement and API regression checks
+│   │   └── test_obd_telemetry.py     # Simulated telemetry schema and no-side-effect checks
 │   └── app/
 │       ├── main.py                   # REST, local chat, mileage, and HTTP MCP routes
 │       ├── local_agent.py            # Local Ollama and MCP tool orchestration
@@ -59,7 +63,7 @@ service-lane-copilot/
     ├── next.config.ts                # Backend API rewrite
     └── app/
         ├── icon.svg                 # Browser-tab favicon
-        ├── page.tsx                  # Main advisor screen
+        ├── page.tsx                  # Advisor lookup, simulated telemetry charts, and service history
         ├── chat-panel.tsx             # Advisor chat using local Ollama and MCP
         ├── layout.tsx                # App shell and metadata
         └── globals.css               # Global styles
@@ -75,15 +79,19 @@ The tree shows the main source files and intentionally omits generated folders s
 | `CONTEXT.md` | Short onboarding explanation of the project and links to the authoritative docs. |
 | `MEMORY.md` | Verified architecture, local run commands, current implementation status, and known gaps. |
 | `SERVICE_LANE_COPILOT_SPEC.md` | Product requirements, boundaries, acceptance criteria, and the verification plan. |
-| `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |\n| `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
+| `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |
+| `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
+| `docs/feature-spec-simulated-obd-telemetry.md` | Simulated OBD-II POC requirements, data labeling, and safety boundaries. |
 | `README.md` | Setup instructions, architecture diagram, folder tree, file guide, endpoints, and sample serial numbers. |
-| `data/vehicles.json` | The 250 fictional vehicle records, service histories, and explicit demo recommendation examples used by the app. |
+| `data/vehicles.json` | The 250 fictional vehicle records, four simulated telemetry streams per record, service histories, and explicit demo recommendation examples. |
 | `backend/requirements.txt` | Pinned Python packages for FastAPI, Uvicorn, and MCP. |
 | `backend/mcp_stdio.py` | Entry point for MCP clients that start the server as a local subprocess. |
 | `backend/app/main.py` | FastAPI REST, local-chat and mileage endpoints, and mounted Streamable HTTP MCP endpoint. |
-| `backend/app/mcp_server.py` | MCP server setup, read-only tools, resources, and draft responses exposed to both harnesses and in-app chat. |
-| `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions. |
-| `backend/app/data_store.py` | Shared synthetic JSON loader, validation, and local REST mileage update. |\n| `backend/tests/test_mileage.py` | Standard-library regression checks for replacement, provenance, conflict, and API validation. |
+| `backend/app/mcp_server.py` | MCP server setup, read-only vehicle records (including simulated telemetry), resources, and draft responses. |
+| `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions that reject simulated telemetry as service evidence. |
+| `backend/app/data_store.py` | Shared synthetic JSON loader, validation, and local REST mileage update. |
+| `backend/tests/test_mileage.py` | Standard-library regression checks for replacement, provenance, conflict, and API validation. |
+| `backend/tests/test_obd_telemetry.py` | Checks telemetry coverage, values, timestamps, unknown records, determinism, and unchanged recommendations/history after mileage updates. |
 | `frontend/package.json` | Frontend scripts and pinned direct dependencies. |
 | `frontend/package-lock.json` | Exact resolved frontend dependency versions for repeatable npm installs. |
 | `frontend/next.config.ts` | Rewrite from browser `/api/copilot/*` requests to the local FastAPI `/api/*` routes. |
