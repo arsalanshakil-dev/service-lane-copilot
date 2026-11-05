@@ -6,6 +6,7 @@ import asyncio
 import copy
 import json
 import unittest
+from datetime import datetime
 from typing import Any
 from unittest.mock import patch
 
@@ -38,8 +39,14 @@ VEHICLE: dict[str, Any] = {
 }
 
 
-def suggestion(name: str, reason: str, refs: list[Any], safety: bool = False) -> dict[str, Any]:
-    return {"name": name, "reason": reason, "history_refs": refs, "safety_related": safety}
+def suggestion(name: str, reason: str, refs: list[Any], safety: bool = False, interval: Any = 0) -> dict[str, Any]:
+    return {
+        "name": name,
+        "reason": reason,
+        "history_refs": refs,
+        "safety_related": safety,
+        "typical_interval_miles": interval,
+    }
 
 
 def run(coro: Any) -> Any:
@@ -76,15 +83,31 @@ class SuggestionValidationTests(unittest.TestCase):
         self.assertEqual(accepted, [])
         self.assertEqual(dropped, 5)
 
-    def test_prices_and_stated_intervals_are_dropped(self) -> None:
+    def test_prices_are_still_dropped(self) -> None:
         accepted, dropped = self.validate(
             suggestion("Battery test", "Usually costs $45.", [1]),
-            suggestion("Coolant flush", "Recommended every 30,000 miles.", [1]),
-            suggestion("Cabin filter", "Replace each 12 months.", [1]),
             suggestion("Wiper inspection", "About 500 PKR at most shops.", [1]),
         )
         self.assertEqual(accepted, [])
-        self.assertEqual(dropped, 4)
+        self.assertEqual(dropped, 2)
+
+    def test_model_interval_estimate_is_allowed_and_labelled_unverified(self) -> None:
+        # Issue #30: stated intervals are no longer dropped; they are shown as a model estimate.
+        accepted, dropped = self.validate(
+            suggestion("Coolant flush", "Commonly done around 30,000 miles; no record in history.", [1], interval=30000),
+        )
+        self.assertEqual(dropped, 0)
+        self.assertEqual(accepted[0]["interval_estimate_miles"], 30000)
+        self.assertIn("Model estimate", accepted[0]["rule"])
+        self.assertIn("about every 30,000 mi", accepted[0]["rule"])
+        self.assertIn("Unverified", accepted[0]["rule"])
+
+    def test_invalid_interval_estimates_are_ignored_not_shown(self) -> None:
+        for bad in (0, -5, 999_999, "10000", True, None):
+            with self.subTest(bad=bad):
+                accepted, _ = self.validate(suggestion("Coolant flush", "No record in history.", [1], interval=bad))
+                self.assertIsNone(accepted[0]["interval_estimate_miles"])
+                self.assertNotIn("Model estimate", accepted[0]["rule"])
 
     def test_citing_a_recorded_mileage_is_not_treated_as_an_interval(self) -> None:
         accepted, dropped = self.validate(
@@ -120,6 +143,82 @@ class SuggestionValidationTests(unittest.TestCase):
     def test_unexpected_shape_raises_request_error(self) -> None:
         with self.assertRaises(OllamaRequestError):
             validate_suggestions(["not", "a", "dict"], VEHICLE, MODEL)
+
+
+class RepeatGuardTests(unittest.TestCase):
+    """Issue #30: never re-suggest a service the history shows was done recently."""
+
+    TODAY = datetime(2026, 11, 5)
+
+    def vehicle_with(self, *events: dict[str, Any], mileage: int | None = 48120) -> dict[str, Any]:
+        vehicle = copy.deepcopy(VEHICLE)
+        vehicle["mileage"] = mileage
+        vehicle["history"] = [*events, *vehicle["history"]]
+        return vehicle
+
+    def validate(self, vehicle: dict[str, Any], *items: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
+        return validate_suggestions({"suggestions": list(items)}, vehicle, MODEL, today=self.TODAY)
+
+    def test_wipers_changed_10_miles_ago_are_not_suggested_again(self) -> None:
+        # The user's example: oil change + wiper change, car returns 10 miles later.
+        vehicle = self.vehicle_with(
+            {"date": "Nov 04, 2026", "name": "Wiper blades", "detail": "Front wipers", "mileage": "48,110 mi"},
+            mileage=48120,
+        )
+        for name in ("Wiper blades", "Wiper blade condition check", "Windshield wiper blades", "wiper"):
+            with self.subTest(name=name):
+                accepted, dropped = self.validate(vehicle, suggestion(name, "Common item.", [1], interval=12000))
+                self.assertEqual(accepted, [])
+                self.assertEqual(dropped, 1)
+
+    def test_floor_applies_even_when_model_gives_a_tiny_interval(self) -> None:
+        vehicle = self.vehicle_with(
+            {"date": "Oct 01, 2026", "name": "Wiper blades", "detail": "", "mileage": "47,500 mi"},
+        )
+        accepted, _ = self.validate(vehicle, suggestion("Wiper blades", "Common item.", [1], interval=5))
+        self.assertEqual(accepted, [])  # 620 mi ago < 1,000 mi demo floor
+
+    def test_item_past_its_estimated_interval_can_be_suggested(self) -> None:
+        vehicle = self.vehicle_with(
+            {"date": "Jan 10, 2024", "name": "Wiper blades", "detail": "", "mileage": "20,000 mi"},
+        )
+        accepted, dropped = self.validate(vehicle, suggestion("Wiper blades", "Last changed long ago.", [1], interval=12000))
+        self.assertEqual(dropped, 0)
+        self.assertEqual(accepted[0]["name"], "Wiper blades")
+
+    def test_item_within_its_estimated_interval_is_dropped(self) -> None:
+        vehicle = self.vehicle_with(
+            {"date": "Mar 01, 2026", "name": "Cabin air filter", "detail": "", "mileage": "44,000 mi"},
+        )
+        accepted, _ = self.validate(vehicle, suggestion("Cabin air filter", "Reason.", [1], interval=15000))
+        self.assertEqual(accepted, [])  # 4,120 mi ago < 15,000 mi estimate
+
+    def test_service_without_odometer_uses_30_day_guard(self) -> None:
+        recent = self.vehicle_with({"date": "Oct 25, 2026", "name": "Wiper blades", "detail": "", "mileage": "Not recorded"})
+        old = self.vehicle_with({"date": "Jan 05, 2026", "name": "Wiper blades", "detail": "", "mileage": "Not recorded"})
+        self.assertEqual(self.validate(recent, suggestion("Wiper blades", "Reason.", [1]))[0], [])
+        self.assertEqual(len(self.validate(old, suggestion("Wiper blades", "Reason.", [1]))[0]), 1)
+
+    def test_unrelated_service_does_not_block_a_suggestion(self) -> None:
+        # "Engine oil and filter" must not block "Cabin air filter" just because both mention "filter".
+        accepted, dropped = self.validate(copy.deepcopy(VEHICLE), suggestion("Cabin air filter", "Reason.", [1], interval=15000))
+        self.assertEqual(dropped, 0)
+        self.assertEqual(len(accepted), 1)
+
+    def test_never_recorded_item_is_dropped_until_its_estimated_interval_is_reached(self) -> None:
+        vehicle = copy.deepcopy(VEHICLE)  # 48,120 mi, no spark plug or coolant history
+        accepted, dropped = self.validate(
+            vehicle,
+            suggestion("Spark plugs", "Commonly replaced by this mileage.", [1], interval=60000),
+            suggestion("Coolant flush", "Commonly done by this mileage.", [1], interval=30000),
+        )
+        self.assertEqual([item["name"] for item in accepted], ["Coolant flush"])
+        self.assertEqual(dropped, 1)
+
+    def test_prompt_shows_miles_since_each_service(self) -> None:
+        facts = ai_assist._record_facts(copy.deepcopy(VEHICLE))
+        self.assertIn("at 39,820 mi (8,300 mi ago)", facts)
+        self.assertIn("at 34,910 mi (13,210 mi ago)", facts)
 
 
 class SuggestionFlowTests(unittest.TestCase):

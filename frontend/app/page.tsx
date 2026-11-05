@@ -488,13 +488,13 @@ function AiSuggestionsSection({ result, busy, error, model, modelsError, onSugge
   return (
     <section className="ai-suggestions" aria-labelledby="ai-suggestions-title" aria-busy={busy}>
       <div className="section-heading"><h3 id="ai-suggestions-title">AI suggestions <span className="ai-tag">Unverified</span></h3><button className="copy-button ai-button" type="button" onClick={onSuggest} disabled={!model || busy}>{busy ? "Thinking… (can take a few minutes)" : "✦ Suggest more with local AI"}</button></div>
-      <p className="source-note">Extra items proposed by your local Ollama model{model ? ` (${model})` : ""}. They are not from the demo schedule, never change the recommendations above, and must be verified by the advisor. Items without cited history, or with prices or intervals, are removed automatically.</p>
+      <p className="source-note">Extra items proposed by your local Ollama model{model ? ` (${model})` : ""}. They are based on the current mileage and miles since each recorded service. Any mileage interval shown is the model's own estimate, not a manufacturer schedule. They never change the recommendations above and must be verified by the advisor. Items without cited history, with prices, or done too recently are removed automatically.</p>
       {!model && modelsError && <p className="ai-error" role="alert">{modelsError}</p>}
       {error && <p className="ai-error" role="alert">{error}</p>}
       {result?.limitation && <div className="evidence">{result.limitation}</div>}
       {result && !result.limitation && result.suggestions.length === 0 && <div className="evidence">The local model found no additional items supported by the recorded history.</div>}
       {result?.suggestions.map((rec, index) => <RecommendationCard key={`ai-${rec.name}-${index}`} rec={rec} />)}
-      {result && result.dropped > 0 && <p className="source-note">{result.dropped} suggestion{result.dropped === 1 ? " was" : "s were"} removed for missing history evidence, prices, intervals, or duplicating a stored recommendation.</p>}
+      {result && result.dropped > 0 && <p className="source-note">{result.dropped} suggestion{result.dropped === 1 ? " was" : "s were"} removed for missing history evidence, prices, duplicating a stored recommendation, or being done too recently.</p>}
     </section>
   );
 }

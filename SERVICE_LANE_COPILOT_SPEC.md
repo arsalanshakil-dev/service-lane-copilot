@@ -120,7 +120,8 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 
 - The Customer drafts panel keeps the instant template draft and offers **Generate with local AI**, which replaces the active draft with local-Ollama-written text that is editable and never sent.
 - **Suggest more with local AI** shows up to three model-suggested service items in a separate section labelled "AI suggestion — unverified". They never change stored recommendations.
-- Each AI suggestion must cite recorded service-history entries; the backend builds its evidence from those entries and drops suggestions with invalid citations, prices, stated intervals, or duplicates. Safety-related suggestions are verification prompts only.
+- Each AI suggestion must cite recorded service-history entries; the backend builds its evidence from those entries and drops suggestions with invalid citations, prices, or duplicates of stored recommendations. Safety-related suggestions are verification prompts only.
+- **Mileage-based AI suggestions (issue #30):** the prompt includes current mileage and miles since each recorded service. The model may give its own estimate of a typical interval in miles; it is shown as "Model estimate … Unverified; check the manufacturer schedule." (approved AGENTS.md exception). The backend drops a suggestion that matches a recorded service done fewer miles ago than the model's interval or the 1,000 mi demo floor, or within 30 days when that service's odometer was not recorded. An item never recorded is dropped until the vehicle reaches the model's interval estimate. A service recorded 10 miles ago is never suggested again.
 - Records with missing mileage, incomplete or conflicting data, or no history return no AI suggestions and a limitation.
 - See `docs/feature-spec-local-ai-assist.md`.
 

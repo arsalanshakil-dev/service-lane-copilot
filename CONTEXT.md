@@ -4,7 +4,7 @@
 
 Service Lane Copilot is a local demonstration app for dealership service advisors. It helps an advisor look up a vehicle in a synthetic dealership service-history dataset, review evidence-backed demo service items, and prepare editable customer or record-request drafts.
 
-The demo uses 250 fictional vehicle records. It is not a production maintenance system and does not provide real vehicle advice. Stored recommendations come from explicit synthetic record data and example rules, not a language model's judgment. Separately, the advisor can ask the local Ollama model for up to three extra "AI suggestion — unverified" items; these are shown apart from the stored recommendations, must cite recorded service history, and are filtered by the backend (no prices, intervals, or duplicates).
+The demo uses 250 fictional vehicle records. It is not a production maintenance system and does not provide real vehicle advice. Stored recommendations come from explicit synthetic record data and example rules, not a language model's judgment. Separately, the advisor can ask the local Ollama model for up to three extra "AI suggestion — unverified" items based on the current mileage. These are shown apart from the stored recommendations and must cite recorded service history. They may show the model's own unverified mileage-interval estimate. The backend removes prices, duplicates, and anything done too recently or not due yet by mileage.
 
 ## How it is built
 
