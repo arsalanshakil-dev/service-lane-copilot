@@ -7,7 +7,7 @@ from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from .data_store import find_vehicle, load_vehicles, search_vehicle_summaries
+from .data_store import find_vehicle, load_vehicles, search_vehicle_summaries, update_vehicle_mileage
 from .mcp_server import mcp_server, mcp_http_app
 from .local_agent import (
     OllamaRequestError,
@@ -26,6 +26,14 @@ class LocalChatRequest(BaseModel):
     model: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=4_000)
     history: list[ChatTurn] = Field(default_factory=list, max_length=12)
+
+
+class ManualMileageUpdate(BaseModel):
+    """Advisor-confirmed manual odometer reading for a synthetic record."""
+
+    mileage: int = Field(ge=0)
+    mileage_date: date = Field(alias="mileageDate")
+    mileage_source: Literal["advisor_observed", "customer_reported"] = Field(alias="mileageSource")
 
 
 @asynccontextmanager
@@ -60,7 +68,7 @@ app = FastAPI(
         },
         {
             "name": "Vehicles",
-            "description": "Read-only search and retrieval over synthetic vehicle records.",
+            "description": "Search and retrieval over synthetic records plus an advisor-reviewed local mileage update.",
         },
     ],
     lifespan=lifespan,
@@ -161,6 +169,27 @@ async def local_chat(payload: LocalChatRequest) -> dict[str, Any]:
 
 
 
+
+@app.patch("/api/vehicles/{serial}/mileage", tags=["Vehicles"])
+def update_manual_mileage(serial: str, payload: ManualMileageUpdate) -> dict[str, Any]:
+    """Replace missing current mileage in a synthetic record with advisor-confirmed data."""
+    if payload.mileage_date > date.today():
+        raise HTTPException(status_code=422, detail="Mileage date cannot be in the future.")
+    try:
+        vehicle = update_vehicle_mileage(
+            serial,
+            payload.mileage,
+            payload.mileage_date.isoformat(),
+            payload.mileage_source,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Could not save the synthetic mileage update.") from exc
+
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
+    return vehicle
 
 # MCP endpoint: http://127.0.0.1:8000/mcp
 app.mount("/mcp", mcp_http_app)

@@ -27,6 +27,7 @@ type Vehicle = {
   year: number;
   mileage: number | null;
   mileageDate: string;
+  mileageSource?: "advisor_observed" | "customer_reported";
   completeness: string;
   history: HistoryEvent[];
   recs: Recommendation[];
@@ -95,10 +96,24 @@ export default function Home() {
   const [draftText, setDraftText] = useState("");
   const [recordDraft, setRecordDraft] = useState("");
   const [toast, setToast] = useState("");
+  const [manualMileage, setManualMileage] = useState("");
+  const [manualMileageDate, setManualMileageDate] = useState("");
+  const [manualMileageSource, setManualMileageSource] = useState<"advisor_observed" | "customer_reported">("advisor_observed");
+  const [savingMileage, setSavingMileage] = useState(false);
 
   function notify(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2200);
+  }
+
+  function toggleTheme() {
+    const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = nextTheme;
+    try {
+      window.localStorage.setItem("service-lane-theme", nextTheme);
+    } catch {
+      // The current page theme still changes if browser storage is unavailable.
+    }
   }
 
   async function lookup(rawSerial: string) {
@@ -110,6 +125,9 @@ export default function Home() {
     setVehicle(null);
     setMissingSerial(null);
     setRecordDraft("");
+    setManualMileage("");
+    setManualMileageDate("");
+    setManualMileageSource("advisor_observed");
     try {
       const response = await fetch(`/api/copilot/vehicles/${encodeURIComponent(normalized)}`, {
         headers: { Accept: "application/json" },
@@ -134,6 +152,38 @@ export default function Home() {
   function submitLookup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void lookup(serial);
+  }
+
+  async function saveManualMileage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!vehicle) return;
+    setSavingMileage(true);
+    try {
+      const response = await fetch(`/api/copilot/vehicles/${encodeURIComponent(vehicle.serial)}/mileage`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          mileage: Number(manualMileage),
+          mileageDate: manualMileageDate,
+          mileageSource: manualMileageSource,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        notify(data.detail ?? "Could not save the mileage reading.");
+        return;
+      }
+      const updatedVehicle = data as Vehicle;
+      setVehicle(updatedVehicle);
+      setDraftText(draftFor(updatedVehicle, activeDraft));
+      setManualMileage("");
+      setManualMileageDate("");
+      notify(data.conflicting ? "Mileage saved; history conflict needs review" : "Mileage saved to the synthetic record");
+    } catch {
+      notify("Could not save the mileage. Check that the backend is running.");
+    } finally {
+      setSavingMileage(false);
+    }
   }
 
   function chooseDraft(kind: DraftKind) {
@@ -169,7 +219,7 @@ export default function Home() {
       </aside>
 
       <main id="main" className="main-content">
-        <header className="topbar"><div className="breadcrumbs">Workspace <span>/</span> <strong>Service lane</strong></div><div className="topbar-right"><span className="live-dot" /> Synthetic data <span className="top-divider" /><button className="help-button" aria-label="Help">?</button></div></header>
+        <header className="topbar"><div className="breadcrumbs">Workspace <span>/</span> <strong>Service lane</strong></div><div className="topbar-right"><button className="theme-toggle" type="button" onClick={toggleTheme} aria-label="Toggle light and dark theme" title="Toggle light and dark theme"><span aria-hidden="true">◐</span><span className="theme-toggle-label">Theme</span></button><span className="live-dot" /> Synthetic data <span className="top-divider" /><button className="help-button" aria-label="Help">?</button></div></header>
         <section className="page-heading"><div><p className="eyebrow">SERVICE LANE</p><h1>Good morning, Jordan <span className="wave">✳</span></h1><p className="page-subtitle">Get ready for the next conversation. Start with a vehicle’s service history.</p></div><div className="date-chip"><span>◷</span> Demo appointments <strong>8</strong></div></section>
 
         <section className="lookup-card" aria-labelledby="lookup-title">
@@ -183,10 +233,11 @@ export default function Home() {
         {vehicle && <div className="result-layout">
           <section className="vehicle-card">
             <div className="vehicle-top"><div className="vehicle-ident"><div className="car-badge">▰</div><div><h2>{vehicle.year} {vehicle.make} {vehicle.model}</h2><p>Serial number {vehicle.serial}</p></div></div><span className={`record-pill ${incomplete ? "incomplete" : ""}`}>{vehicle.completeness}</span></div>
-            <div className="vehicle-meta"><div><div className="meta-label">CURRENT MILEAGE</div><div className="meta-value">{formatMiles(vehicle.mileage)}</div><div className="meta-sub">{vehicle.mileageDate}</div></div><div><div className="meta-label">HISTORY EVENTS</div><div className="meta-value">{vehicle.history.length} recorded</div><div className="meta-sub">Synthetic dealer record</div></div><div><div className="meta-label">RECORD STATUS</div><div className="meta-value">{incomplete ? "Needs attention" : "Ready to review"}</div><div className="meta-sub">Synthetic dataset</div></div></div>
-            {incomplete && <><div className="warning-banner"><b>!</b><span>{vehicle.conflicting ? "Mileage conflict: a recorded service mileage is higher than the current odometer reading. Reconcile the records before using service timing." : vehicle.mileage != null ? "The mileage record is old, so service timing cannot be confirmed. Ask the customer for the current odometer reading and verify the record." : "Mileage is missing and service history is incomplete. Do not infer a due service from this record. Get a current odometer reading and request the missing history."}</span></div><div className="path-grid record-paths"><article className="path-card"><h3>Update dealership service record</h3><p>Prepare an intake draft to confirm vehicle details, mileage, and missing service history.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for advisor review. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</>}
+            <div className="vehicle-meta"><div><div className="meta-label">CURRENT MILEAGE</div><div className="meta-value">{formatMiles(vehicle.mileage)}</div><div className="meta-sub">{vehicle.mileageDate}{vehicle.mileageSource ? ` · ${vehicle.mileageSource === "advisor_observed" ? "Advisor-observed" : "Customer-reported"}` : ""}</div></div><div><div className="meta-label">HISTORY EVENTS</div><div className="meta-value">{vehicle.history.length} recorded</div><div className="meta-sub">Synthetic dealer record</div></div><div><div className="meta-label">RECORD STATUS</div><div className="meta-value">{incomplete ? "Needs attention" : "Ready to review"}</div><div className="meta-sub">Synthetic dataset</div></div></div>
+            {vehicle.mileage == null && <section className="manual-mileage" aria-labelledby="manual-mileage-title"><div><h3 id="manual-mileage-title">Enter current mileage</h3><p>No odometer reading is available. Record a manual reading for this synthetic vehicle.</p></div><form className="manual-mileage-form" onSubmit={saveManualMileage}><label>Odometer miles<input type="number" min="0" step="1" inputMode="numeric" required value={manualMileage} onChange={(event) => setManualMileage(event.target.value)} placeholder="e.g. 48,120" /></label><label>Reading date<input type="date" required value={manualMileageDate} onChange={(event) => setManualMileageDate(event.target.value)} /></label><label>Reading source<select value={manualMileageSource} onChange={(event) => setManualMileageSource(event.target.value as "advisor_observed" | "customer_reported")}><option value="advisor_observed">Advisor-observed</option><option value="customer_reported">Customer-reported</option></select></label><button className="primary-button manual-mileage-submit" type="submit" disabled={savingMileage}>{savingMileage ? "Saving…" : "Save mileage"}</button></form><p className="manual-mileage-note">Saving replaces the current mileage field. Earlier mileage is not retained. Recommendations remain paused if service-history evidence is incomplete or conflicting.</p></section>}
+            {incomplete && <><div className="warning-banner"><b>!</b><span>{vehicle.conflicting ? "Mileage conflict: a recorded service mileage is higher than the current odometer reading. Reconcile the records before using service timing." : vehicle.mileage != null && vehicle.completeness === "History incomplete" ? "Current mileage is recorded, but service history is incomplete or missing event mileage. Recommendations remain paused until the advisor can verify supporting history; do not infer a due service." : vehicle.mileage != null ? "The mileage record is old, so service timing cannot be confirmed. Ask the customer for the current odometer reading and verify the record." : "Mileage is missing and service history is incomplete. Do not infer a due service from this record. Get a current odometer reading and request the missing history."}</span></div><div className="path-grid record-paths"><article className="path-card"><h3>Update dealership service record</h3><p>Prepare an intake draft to confirm vehicle details, mileage, and missing service history.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for advisor review. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</>}
             <div className="section-heading"><h3>{incomplete ? "Recommendations" : "Service recommendations"}</h3><span className="count-badge">{incomplete ? "Evidence needed" : `${vehicle.recs.length} items to review`}</span></div>
-            {incomplete ? <div className="evidence">Recommendations are paused until the advisor can verify current mileage and relevant service history.</div> : vehicle.recs.length ? vehicle.recs.map((rec, index) => <RecommendationCard key={`${rec.name}-${index}`} rec={rec} />) : <div className="evidence">No items match the configured demo rules. This does not replace review against an approved maintenance schedule.</div>}
+            {incomplete ? <div className="evidence">{vehicle.mileage == null ? "Recommendations are paused until a current mileage reading and relevant service history are verified." : "Manual mileage is saved, but service-history evidence is still incomplete. Recommendations remain paused until the advisor can verify it."}</div> : vehicle.recs.length ? vehicle.recs.map((rec, index) => <RecommendationCard key={`${rec.name}-${index}`} rec={rec} />) : <div className="evidence">No items match the configured demo rules. This does not replace review against an approved maintenance schedule.</div>}
             <div className="history-list"><div className="section-heading"><h3>Service history</h3><span className="count-badge">{vehicle.history.length} events</span></div>{vehicle.history.map((event, index) => <div className="history-row" key={`${event.name}-${index}`}><span className="history-date">{event.date}</span><span className="history-name">{event.name}<span className="history-detail">{event.detail}</span></span><span className="history-mileage">{event.mileage}</span></div>)}</div>
           </section>
           <aside className="side-column"><section className="panel"><div className="panel-title-row"><div><h3>Customer drafts</h3><div className="panel-subtitle">Editable · Nothing is sent</div></div><span className="draft-type">FOR REVIEW</span></div><div className="draft-tabs" role="tablist" aria-label="Customer draft type">{(["explanation", "quote", "followup"] as DraftKind[]).map((kind) => <button key={kind} className={`draft-tab ${activeDraft === kind ? "active" : ""}`} role="tab" aria-selected={activeDraft === kind} type="button" onClick={() => chooseDraft(kind)}>{kind === "followup" ? "Follow-up" : kind[0].toUpperCase() + kind.slice(1)}</button>)}</div><textarea className="draft-editor" aria-label="Editable customer draft" value={draftText} onChange={(event) => setDraftText(event.target.value)} /><div className="draft-actions"><span className="draft-status">Review details before sharing</span><button className="copy-button" type="button" onClick={() => void copyDraft()}>Copy draft</button></div><p className="disclaimer">Draft text is based only on the synthetic record and demo rules. Check all details and pricing before use.</p></section><section className="panel"><div className="panel-title-row"><div><h3>Record details</h3><div className="panel-subtitle">From synthetic dealership history</div></div><span className="draft-type">DEMO</span></div><div className="evidence"><strong>Lookup key</strong><br />Synthetic vehicle serial: {vehicle.serial}</div><div className="evidence" style={{ marginTop: 8 }}><strong>Planned vehicle source</strong><br />OBD-II/CAN may provide a VIN; make, model, and year can be decoded from it. Odometer support varies by vehicle and adapter. This demo uses synthetic data; service history remains separate.</div><p className="disclaimer">No physical vehicle or dealership system is connected.</p></section></aside>

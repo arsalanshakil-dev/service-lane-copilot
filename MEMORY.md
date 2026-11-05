@@ -21,7 +21,7 @@ This file is a continuity summary, not a requirements document. Product requirem
 - MCP stdio launcher: `backend/mcp_stdio.py`.
 - MCP tools: `search_vehicle_records`, `get_vehicle_record`, `create_customer_draft`, `create_record_request_draft`, and `dataset_summary`.
 - MCP resources: `service-lane://demo-guide` and `vehicle://{serial}`.
-- MCP tools are read-only. Draft tools return text with `sent: false` / `submitted: false`; they do not contact anyone or change records.
+- MCP tools remain read-only. Draft tools return text with `sent: false` / `submitted: false`; they do not contact anyone or change records. Only the local REST mileage route writes the synthetic JSON file.
 - Next.js proxies `/api/copilot/*` to FastAPI using `frontend/next.config.ts`.
 - In-app chat exposes `GET /api/chat/models` and `POST /api/chat`; model discovery and inference are fixed to Ollama at `http://127.0.0.1:11434` with no cloud fallback.
 - `backend/app/local_agent.py` discovers MCP tools and resources in-process with the pinned MCP SDK, passes tool schemas to Ollama, reads advertised resources, and limits each turn to six tool rounds/twelve tool calls. It refuses an answer when the model uses no MCP capability.
