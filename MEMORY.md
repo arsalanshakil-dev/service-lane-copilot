@@ -9,7 +9,8 @@ This file is a continuity summary, not a requirements document. Product requirem
 - Service Lane Copilot is a local synthetic-data demo for a dealership service advisor.
 - The frontend is Next.js App Router, React, and TypeScript in `frontend/`.
 - The backend is Python FastAPI plus MCP in `backend/`.
-- Supabase Postgres table `public.vehicle_records` is the runtime source for REST and MCP. `data/vehicles.json` contains 250 synthetic seed records only; there is no runtime JSON fallback.
+- Supabase Postgres table `public.vehicle_records` is the runtime source for REST and MCP. `data/vehicles.json` contains 1,000 synthetic seed records only (250 original + 750 from `backend/generate_synthetic_vehicles.py`, fixed seed 20261105, issue #34); there is no runtime JSON fallback.
+- Seeding: `python seed_supabase.py` refreshes every row from the fixture (overwrites mileage/services saved through the app); `--keep-existing` inserts only missing serials (`ignore_duplicates`). On 2026-11-05 the hosted Supabase project was seeded with `--keep-existing`: 250 → 1,000 rows, DEMO-0011's recorded services kept.
 - Backend configuration is `SUPABASE_URL` plus `SUPABASE_SECRET_KEY` in ignored `backend/.env`; never expose the secret key to frontend code.
 - All vehicle records, recommendations, mileage, rules, and prices are demo content. No real dealership or customer information is allowed.
 - Due/coming-up items are stored synthetic examples, not calculated real maintenance guidance.

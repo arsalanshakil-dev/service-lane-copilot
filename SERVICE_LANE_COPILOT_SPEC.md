@@ -12,7 +12,7 @@ This MVP uses synthetic vehicles, service histories, and clearly labeled example
 - **Backend:** Python FastAPI REST API plus a standard MCP server in `backend/`.
 - **Backend docs:** Swagger UI at `/docs`, OpenAPI JSON at `/openapi.json`, and interface summary at `/api/capabilities`.
 - **Runtime database:** Supabase Postgres, accessed only by the Python backend. `data/vehicles.json` is the checked-in synthetic seed fixture, not a runtime fallback.
-- **Synthetic seed:** 250 synthetic vehicle records can be loaded with the idempotent backend seed command.
+- **Synthetic seed:** 1,000 synthetic vehicle records (250 original plus 750 from the repeatable generator `backend/generate_synthetic_vehicles.py`, issue #34) can be loaded with the idempotent backend seed command. `python seed_supabase.py --keep-existing` adds missing records without overwriting changes saved through the app.
 - **Manual mileage:** advisor-reviewed `PATCH /api/vehicles/{serial}/mileage` replaces the current value in the synthetic record stored in Supabase. **Completed services:** advisor-reviewed `POST /api/vehicles/{serial}/services` records a completed service (history event, optional Completed status on a stored recommendation, and a higher odometer reading). These are the only two REST write routes, and MCP remains read-only.
 - **API connection:** Next.js rewrites `/api/copilot/*` to the local FastAPI service, avoiding a separate browser CORS configuration for the demo. In development, allow both `localhost` and `127.0.0.1` so Next.js client assets and HMR work from either loopback address. Set the rewrite proxy timeout (`experimental.proxyTimeout`) to 1,800,000 ms so local Ollama requests are not cut off by the 30-second default.
 - **Agent connection:** MCP Streamable HTTP at `/mcp` and stdio for local subprocess-based agent harnesses.
@@ -184,7 +184,7 @@ Before calling the MVP ready, automate these behaviors where practical and recor
 13. Ollama unavailable, no installed model, invalid tool, and MCP tool failure produce clear errors without making external calls.
 14. Chat cannot send drafts, write a vehicle record, book service, or control a vehicle; history is not persisted server-side.
 15. Manual mileage can replace the current value with date and source for a known serial; invalid/future values are rejected, unknown serials return 404, and conflicting/incomplete evidence keeps recommendations paused.
-16. Supabase migrations create the private record table with RLS/privileges; idempotent seeding loads 250 synthetic records; API/MCP reads use the database, and mileage replacement persists while preserving unrelated record fields.
+16. Supabase migrations create the private record table with RLS/privileges; idempotent seeding loads 1,000 synthetic records; API/MCP reads use the database, and mileage replacement persists while preserving unrelated record fields.
 17. Missing Supabase configuration or provider failure returns unavailable without JSON fallback; frontend and MCP callers cannot read or expose database keys.
 
 Review the code changes and evidence for each check before accepting them. A check that was not run is **unverified**, not passed. The existing verification plan defines expected behavior; it is not evidence that implementation has already passed.
@@ -216,7 +216,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 ### Needed for the synthetic-data MVP
 
 - [x] **Define the demo maintenance rules.** Use fictional example mileage thresholds and label them as synthetic. They demonstrate due, coming-up, and not-yet-due results; they are not approved guidance.
-- [x] **Define sample record coverage.** Use 250 synthetic vehicles: 10 hand-authored examples plus 240 deterministic generated records. Cover complete history, no matching recommendation, missing mileage, stale mileage, conflicting mileage, and unknown serial numbers.
+- [x] **Define sample record coverage.** Use 250 synthetic vehicles: 10 hand-authored examples plus 240 deterministic generated records. Cover complete history, no matching recommendation, missing mileage, stale mileage, conflicting mileage, and unknown serial numbers. Issue #34 adds 750 more generated records (DEMO-0251…DEMO-1000) with 16 fictional make/model lines and 3–6 history entries from eight fictional service types, using `backend/generate_synthetic_vehicles.py` with a fixed seed.
 - [x] **Set the draft content contract.** Explanation, quote, follow-up, dealership-record intake, and outside-history drafts are editable and unsent. Quote drafts contain suggested line items but no invented pricing.
 - [x] **Set MVP acceptance checks.** The nine repeatable behavior checks are listed in the verification plan. Their execution is still needed before claiming the checks passed.
 - [x] **Choose implementation stack and local run instructions.** Use a Python FastAPI backend and a React/Next.js App Router frontend with TypeScript. Expose read-only MCP tools over Streamable HTTP and stdio. Run the two local development servers using the root README instructions.
@@ -237,7 +237,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 
 - Primary user is a dealership service advisor; the interface is a web page.
 - MCP-compatible agent harnesses can access the same synthetic records through read-only tools/resources over stdio or local Streamable HTTP.
-- The released demo uses 250 synthetic vehicle records and fictional service histories/rules.
+- The released demo uses 1,000 synthetic vehicle records and fictional service histories/rules.
 - Demo lookup uses a synthetic vehicle serial. A connected version may read a VIN through OBD-II/CAN and must map it to the dealership’s vehicle identifier before matching. A missing record offers a dealership-record intake draft or an outside-history request draft.
 - A future connected workflow may prefill vehicle identity and available mileage from OBD-II/CAN; the current demo has no physical adapter integration. Service history remains a separate source.
 - Recommendations show service item, due/coming-up status, mileage or history evidence, and a customer-friendly explanation.
@@ -266,6 +266,6 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - `backend/seed_supabase.py` loads the synthetic JSON fixture into Supabase; it is not used for runtime reads.
 - `supabase/migrations/` tracks the database schema and access controls.
 - `backend/requirements.txt` pins Python and MCP dependencies.
-- `data/vehicles.json` stores the 250 vehicle records separately from the interface and API code.
+- `data/vehicles.json` stores the 1,000 vehicle records separately from the interface and API code; `backend/generate_synthetic_vehicles.py` regenerates DEMO-0251…DEMO-1000 identically.
 - `README.md` explains setup, local run commands, and sample vehicle scenarios.
 

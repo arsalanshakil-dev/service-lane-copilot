@@ -4,13 +4,13 @@
 
 Service Lane Copilot is a local demonstration app for dealership service advisors. It helps an advisor look up a vehicle in a synthetic dealership service-history dataset, review evidence-backed demo service items, and prepare editable customer or record-request drafts.
 
-The demo uses 250 fictional vehicle records. It is not a production maintenance system and does not provide real vehicle advice. Stored recommendations come from explicit synthetic record data and example rules, not a language model's judgment. Separately, the advisor can ask the local Ollama model for up to three extra "AI suggestion — unverified" items based on the current mileage. These are shown apart from the stored recommendations and must cite recorded service history. They may show the model's own unverified mileage-interval estimate. The backend removes prices, duplicates, and anything done too recently or not due yet by mileage.
+The demo uses 1,000 fictional vehicle records. It is not a production maintenance system and does not provide real vehicle advice. Stored recommendations come from explicit synthetic record data and example rules, not a language model's judgment. Separately, the advisor can ask the local Ollama model for up to three extra "AI suggestion — unverified" items based on the current mileage. These are shown apart from the stored recommendations and must cite recorded service history. They may show the model's own unverified mileage-interval estimate. The backend removes prices, duplicates, and anything done too recently or not due yet by mileage.
 
 ## How it is built
 
 - **Frontend:** Next.js App Router, React, and TypeScript in `frontend/`.
 - **Backend:** Python, FastAPI, and MCP in `backend/`.
-- **Database:** Supabase Postgres is the runtime source shared by REST and MCP. `data/vehicles.json` is the 250-record synthetic seed fixture only.
+- **Database:** Supabase Postgres is the runtime source shared by REST and MCP. `data/vehicles.json` is the 1,000-record synthetic seed fixture only; `backend/generate_synthetic_vehicles.py` regenerates the generated part repeatably.
 - **REST overview:** FastAPI Swagger UI is at `/docs`; OpenAPI JSON is at `/openapi.json`.
 - **Agent access:** MCP is available over local Streamable HTTP and stdio. The web app also includes a chat assistant that uses the same MCP tools/resources through Ollama at `127.0.0.1:11434` only.
 

@@ -54,9 +54,10 @@ class FakeQuery:
         self.payload = copy.deepcopy(payload)
         return self
 
-    def upsert(self, payload: list[dict], **_options: object) -> "FakeQuery":
+    def upsert(self, payload: list[dict], **options: object) -> "FakeQuery":
         self.operation = "upsert"
         self.payload = copy.deepcopy(payload)
+        self.ignore_duplicates = bool(options.get("ignore_duplicates"))
         return self
 
     def execute(self) -> SimpleNamespace:
@@ -65,6 +66,8 @@ class FakeQuery:
         if self.operation == "upsert":
             assert isinstance(self.payload, list)
             for row in self.payload:
+                if getattr(self, "ignore_duplicates", False) and row["serial"] in self.client.rows:
+                    continue
                 self.client.rows[row["serial"]] = copy.deepcopy(row)
             return SimpleNamespace(data=copy.deepcopy(self.payload))
 
@@ -188,7 +191,22 @@ class SupabaseVehicleStoreTests(unittest.TestCase):
         self.assertEqual(seed_vehicles(self.client, rows), 2)
         self.assertEqual(seed_vehicles(self.client, rows), 2)
         self.assertEqual(set(self.client.rows), {"TEST-001", "SEED-001", "SEED-002"})
-        self.assertEqual(len(build_seed_rows()), 250)
+        self.assertEqual(len(build_seed_rows()), 1000)
+
+    def test_keep_existing_seed_adds_new_rows_without_overwriting_saved_changes(self) -> None:
+        saved = copy.deepcopy(self.client.rows["TEST-001"])
+        saved["record"]["history"] = [{"name": "Advisor-recorded service"}]
+        self.client.rows["TEST-001"] = copy.deepcopy(saved)
+        rows = [
+            {"serial": "TEST-001", "record": {"serial": "TEST-001", "history": [], "recs": []}},
+            {"serial": "SEED-003", "record": {"serial": "SEED-003", "history": [], "recs": []}},
+        ]
+        self.assertEqual(seed_vehicles(self.client, rows, keep_existing=True), 2)
+        self.assertEqual(self.client.rows["TEST-001"], saved)
+        self.assertIn("SEED-003", self.client.rows)
+        # Default refresh still restores the fixture version.
+        seed_vehicles(self.client, rows)
+        self.assertEqual(self.client.rows["TEST-001"]["record"]["history"], [])
 
     def test_seed_fixture_validation_rejects_bad_records(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
