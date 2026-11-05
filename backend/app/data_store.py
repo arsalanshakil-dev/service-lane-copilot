@@ -111,6 +111,40 @@ def find_vehicle(serial: str) -> dict[str, Any] | None:
     return _validated_record(rows[0])[1]
 
 
+OPEN_REC_STATUSES = {"Due", "Coming up", "Advisor verification"}
+
+
+def list_vehicle_summaries(query: str = "", limit: int = 25, offset: int = 0) -> tuple[int, list[dict[str, Any]]]:
+    """Return (total matches, one page of summaries) ordered by serial, for the records view.
+
+    Matches serial, make, model, or year (case-insensitive). Read-only.
+    """
+    term = query.strip().casefold()
+    matches = []
+    for vehicle in sorted(load_vehicles().values(), key=lambda item: item["serial"]):
+        searchable = " ".join(
+            str(vehicle.get(field, "")) for field in ("serial", "make", "model", "year")
+        ).casefold()
+        if term and term not in searchable:
+            continue
+        recs = vehicle.get("recs") or []
+        matches.append(
+            {
+                "serial": vehicle["serial"],
+                "make": vehicle.get("make"),
+                "model": vehicle.get("model"),
+                "year": vehicle.get("year"),
+                "mileage": vehicle.get("mileage"),
+                "completeness": vehicle.get("completeness"),
+                "incomplete": bool(vehicle.get("incomplete")),
+                "conflicting": bool(vehicle.get("conflicting")),
+                "open_recommendations": sum(1 for rec in recs if rec.get("status") in OPEN_REC_STATUSES),
+                "history_count": len(vehicle.get("history") or []),
+            }
+        )
+    return len(matches), matches[offset : offset + limit]
+
+
 def search_vehicle_summaries(query: str = "", limit: int = 20) -> list[dict[str, Any]]:
     """Return small summaries matching serial, make, model, or year."""
     term = query.strip().casefold()

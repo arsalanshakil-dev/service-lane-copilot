@@ -13,7 +13,7 @@ from .data_store import (
     VehicleStoreUnavailableError,
     find_vehicle,
     load_vehicles,
-    search_vehicle_summaries,
+    list_vehicle_summaries,
     UnknownRecommendationError,
     record_completed_service,
     update_vehicle_mileage,
@@ -179,10 +179,14 @@ def capabilities() -> dict[str, Any]:
 def search_vehicles(
     q: str = Query(default="", max_length=100),
     limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=100_000),
 ) -> dict[str, Any]:
-    """Search the local synthetic dataset by serial, make, or model."""
-    matches = search_vehicle_summaries(q, limit)
-    return {"count": len(matches), "limit": limit, "vehicles": matches}
+    """List or search synthetic records by serial, make, model, or year, one page at a time.
+
+    `total` is the number of matching records; `count` is the number on this page.
+    """
+    total, page = list_vehicle_summaries(q, limit, offset)
+    return {"count": len(page), "total": total, "limit": limit, "offset": offset, "vehicles": page}
 
 
 @app.get("/api/vehicles/{serial}", tags=["Vehicles"])

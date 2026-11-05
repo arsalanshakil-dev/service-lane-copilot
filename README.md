@@ -124,7 +124,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/package-lock.json` | Exact resolved frontend dependency versions for repeatable npm installs. |
 | `frontend/next.config.ts` | Rewrite from browser `/api/copilot/*` requests to the local FastAPI `/api/*` routes. |
 | `frontend/.env.local.example` | Example backend URL setting for local development. |
-| `frontend/app/page.tsx` | Main advisor lookup and service-history screen, Mark as done / Record service forms, template and local-AI customer drafts, AI suggestions section, and the local chat panel. |
+| `frontend/app/page.tsx` | Main advisor lookup and service-history screen, Vehicle records list (search and paging), Mark as done / Record service forms, template and local-AI customer drafts, AI suggestions section, and the local chat panel. |
 | `frontend/app/layout.tsx` | Shared page shell and document metadata. |
 | `frontend/app/chat-panel.tsx` | In-app assistant conversation, local model selection, and MCP tool usage display. |
 | `frontend/app/icon.svg` | Service Lane Copilot favicon for browser tabs. |

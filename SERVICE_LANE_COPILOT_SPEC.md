@@ -82,6 +82,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - A serial-number lookup returns either one matching synthetic vehicle or a clear no-match result.
 - Synthetic vehicle records include serial number, make/model/year, recorded odometer mileage and timestamp, service events, and any missing-data indicators.
 - No match, missing mileage, conflicting mileage, or sparse history must be shown as a data limitation; the app must not silently fill gaps.
+- **Vehicle records view (issue #36):** the sidebar **Vehicle records** link (`#records`) lists every record 25 per page, ordered by serial, with serial, vehicle, mileage, status, open recommendation count, and history count, plus search by serial, make, model, or year. Selecting a serial opens it in the Service lane (`#lane`); browser back/forward switch views. On mobile a top-bar Lane/Records switch replaces the hidden sidebar. `GET /api/vehicles` accepts `offset` and returns `total`. Read-only.
 
 ### Supabase vehicle database
 

@@ -16,7 +16,7 @@ The demo uses 1,000 fictional vehicle records. It is not a production maintenanc
 
 ## Main advisor workflow
 
-1. Enter a vehicle serial number in the web app.
+1. Enter a vehicle serial number in the web app, or open **Vehicle records** to browse and search all records and select one.
 2. Review the matching synthetic vehicle, mileage, history, data timing, limitations, and separately labeled simulated telemetry trends.
 3. Review explicitly stored due or coming-up examples with their record evidence and demo rule.
 4. If current mileage is missing or needs correction, replace it with an advisor-confirmed reading, date, and source in the local synthetic record; mileage alone does not resolve missing history.
