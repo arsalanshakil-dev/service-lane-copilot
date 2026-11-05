@@ -10,7 +10,7 @@ The demo uses 250 fictional vehicle records. It is not a production maintenance 
 
 - **Frontend:** Next.js App Router, React, and TypeScript in `frontend/`.
 - **Backend:** Python, FastAPI, and MCP in `backend/`.
-- **Data:** `data/vehicles.json` is the synthetic dataset shared by REST and MCP.
+- **Database:** Supabase Postgres is the runtime source shared by REST and MCP. `data/vehicles.json` is the 250-record synthetic seed fixture only.
 - **REST overview:** FastAPI Swagger UI is at `/docs`; OpenAPI JSON is at `/openapi.json`.
 - **Agent access:** MCP is available over local Streamable HTTP and stdio. The web app also includes a chat assistant that uses the same MCP tools/resources through Ollama at `127.0.0.1:11434` only.
 
@@ -31,6 +31,7 @@ No match or incomplete, stale, or contradictory data must remain visible as unce
 - Use synthetic data only. Never add real customer, vehicle, or dealership records, credentials, or secrets.
 - Drafts are text only: they do not send messages, submit requests, book appointments, modify records, or contact external services. A separate local REST endpoint lets an advisor replace synthetic current mileage with date/source provenance.
 - MCP operations remain read-only apart from returning draft text; they do not persist changes. The manual mileage route is the only REST write path and changes synthetic data only. Chat uses installed local Ollama models, and chat history is not stored by the backend.
+- Supabase is configured for either local development or a user-provided hosted project. The Python backend alone connects to it; no hosted project is provisioned by this code change. `SUPABASE_URL` and `SUPABASE_SECRET_KEY` stay in `backend/.env`.
 - OBD-II/CAN, live dealership systems, external history providers, real maintenance schedules, and production deployment are out of scope for this demo. Future OBD-II work must be separately specified and read-only.
 - Do not invent prices, vehicle details, maintenance intervals, or history.
 
