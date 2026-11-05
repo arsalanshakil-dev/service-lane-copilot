@@ -14,6 +14,7 @@ from .mcp_server import mcp_server
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 OLLAMA_TIMEOUT_SECONDS = 180
 MAX_TOOL_ROUNDS = 6
+MAX_TOOL_CALLS = 12
 MAX_HISTORY_MESSAGES = 12
 MAX_MESSAGE_LENGTH = 4_000
 MAX_TOOL_RESULT_LENGTH = 24_000
@@ -118,7 +119,6 @@ def _resource_uri_allowed(uri: str, fixed_uris: set[str], templates: list[str]) 
     if uri in fixed_uris:
         return True
     for template in templates:
-        pattern = re.escape(template)
         pattern = "^" + "[^/]+".join(re.escape(part) for part in re.split(r"\{[^{}]+\}", template)) + "$"
         if re.fullmatch(pattern, uri):
             return True
@@ -236,6 +236,7 @@ async def chat_with_local_agent(
             {"role": "system", "content": system_prompt},
             *safe_history,
         ]
+        total_tool_calls = 0
         for _ in range(MAX_TOOL_ROUNDS):
             response = await asyncio.to_thread(
                 _ollama_request,
@@ -254,6 +255,15 @@ async def chat_with_local_agent(
             messages.append(assistant_message)
             calls = assistant_message.get("tool_calls", [])
             if not isinstance(calls, list) or not calls:
+                if not tools_used:
+                    return {
+                        "reply": (
+                            "This local model did not use an MCP capability, so I can't ground an app answer. "
+                            "Choose a local model with tool-calling support and try again."
+                        ),
+                        "tools_used": [],
+                        "model": model,
+                    }
                 return {
                     "reply": str(assistant_message.get("content", "")).strip(),
                     "tools_used": list(dict.fromkeys(tools_used)),
@@ -261,6 +271,13 @@ async def chat_with_local_agent(
                 }
 
             for call in calls:
+                total_tool_calls += 1
+                if total_tool_calls > MAX_TOOL_CALLS:
+                    return {
+                        "reply": "I reached the safe MCP tool-call limit. Try a narrower request.",
+                        "tools_used": list(dict.fromkeys(tools_used)),
+                        "model": model,
+                    }
                 if not isinstance(call, dict):
                     continue
                 name, arguments = _tool_call_parts(call)
