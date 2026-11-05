@@ -20,6 +20,7 @@ type ChatResponse = {
 };
 
 const HISTORY_LIMIT = 12;
+const isChatModel = (name: string) => !/(?:embed|embedding|all-minilm)/i.test(name);
 
 export default function ChatPanel() {
   const [open, setOpen] = useState(false);
@@ -44,9 +45,10 @@ export default function ChatPanel() {
           throw new Error(data.detail ?? "Could not connect to local Ollama.");
         }
         if (!cancelled) {
-          setModels(data.models);
-          setModel((current) => (data.models.includes(current) ? current : data.models[0] ?? ""));
-          if (data.models.length === 0) {
+          const chatModels = data.models.filter(isChatModel);
+          setModels(chatModels);
+          setModel((current) => (chatModels.includes(current) ? current : chatModels[0] ?? ""));
+          if (chatModels.length === 0) {
             setError("No local Ollama models found. Install a model, then refresh the list.");
           }
         }
@@ -85,9 +87,20 @@ export default function ChatPanel() {
           history: priorMessages.map(({ role, content }) => ({ role, content })),
         }),
       });
-      const data = (await response.json()) as ChatResponse & { detail?: string };
+      const responseText = await response.text();
+      let data: ChatResponse & { detail?: string };
+      try {
+        data = JSON.parse(responseText) as ChatResponse & { detail?: string };
+      } catch {
+        const genericError = /internal server error/i.test(responseText);
+        data = {
+          detail: genericError
+            ? `The local chat service failed (HTTP ${response.status}). Check the backend terminal for the error and confirm Ollama is running.`
+            : responseText.slice(0, 300),
+        } as ChatResponse & { detail?: string };
+      }
       if (!response.ok) {
-        throw new Error(data.detail ?? "The local assistant could not complete this request.");
+        throw new Error(data.detail || `The local assistant request failed (HTTP ${response.status}). Check that the backend and Ollama are running.`);
       }
       setMessages((current) => [
         ...current,

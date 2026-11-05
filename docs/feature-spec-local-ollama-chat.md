@@ -21,11 +21,12 @@ Updated: 2026-11-05
 
 - Add an in-app chat panel with a selector populated only from models installed in the local Ollama service.
 - Call Ollama only at `http://127.0.0.1:11434`; do not accept a configurable remote model URL or fall back to hosted inference.
-- Use Ollama's local `/api/chat` tool-calling interface.
+- Use Ollama's local `/api/chat` tool-calling interface with `think: false`, so thinking-capable local models (for example qwen3/qwen3.5) return tool calls and replies without long hidden reasoning that can exceed the request timeout on CPU-only machines.
 - Connect to the existing MCP server in-process through the pinned MCP Python SDK client; dynamically discover and call every registered MCP tool.
 - Make all fixed MCP resources and resource templates available through a chat resource-reading function.
 - Preserve a short conversation in browser state only; no chat persistence is added.
 - Show actionable errors when Ollama is unavailable, no local model is installed, or the selected model cannot complete tool use.
+- Distinguish a stopped Ollama service (HTTP 503) from a running model that exceeds the request timeout (HTTP 504, naming the timeout and suggesting a smaller model or a larger `OLLAMA_TIMEOUT_SECONDS`). Ollama errors raised while the in-process MCP client is open must reach these handlers rather than surfacing as a generic HTTP 500.
 - Ground vehicle claims in tool/resource output and preserve the synthetic-data, evidence, uncertainty, and safety boundaries.
 - Keep all drafts unsent and editable/copyable by the user.
 
@@ -78,10 +79,12 @@ Updated: 2026-11-05
 8. Ollama or MCP errors produce a clear message while the existing vehicle UI remains usable.
 9. Tool execution has a bounded round count and rejects model-requested tool names not discovered from the MCP server.
 10. Conversation history is not persisted by the backend or written to project data.
+11. Chat requests to Ollama set `think: false`.
+12. A local model timeout returns HTTP 504 with a timeout message; an unreachable Ollama returns HTTP 503; neither returns a generic HTTP 500.
 
 ## Verification plan
 
-- Automated checks: Not added or run in this implementation task.
+- Automated checks: `backend/tests/test_local_agent.py` covers timeout and connection-failure mapping, unwrapping of Ollama errors raised inside the MCP client, the `think: false` request payload, a grounded MCP tool round-trip against a fake Supabase store, and the 503/504 chat API responses (issue #18).
 - Manual review: Verify local model discovery, an MCP search/retrieve flow, resource reading, draft creation, unknown serial handling, and Ollama-down handling when local services are available.
 - Security/data-boundary review: Inspect all model request URLs and tool dispatch; confirm loopback-only inference, no arbitrary URL, no tools outside the MCP registry except the read-only resource reader, and no MCP writes.
 

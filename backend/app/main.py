@@ -19,6 +19,7 @@ from .data_store import (
 from .mcp_server import mcp_server, mcp_http_app
 from .local_agent import (
     OllamaRequestError,
+    OllamaTimeoutError,
     OllamaUnavailableError,
     chat_with_local_agent,
     list_local_models,
@@ -170,6 +171,8 @@ async def chat_models() -> dict[str, Any]:
     """List models already installed in the local Ollama service."""
     try:
         models = await asyncio.to_thread(list_local_models)
+    except OllamaTimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
     except OllamaUnavailableError as exc:
         raise HTTPException(
             status_code=503,
@@ -189,6 +192,8 @@ async def local_chat(payload: LocalChatRequest) -> dict[str, Any]:
             payload.message,
             [turn.model_dump() for turn in payload.history],
         )
+    except OllamaTimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
     except OllamaUnavailableError as exc:
         raise HTTPException(
             status_code=503,
