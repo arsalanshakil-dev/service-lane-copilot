@@ -54,6 +54,121 @@ type AiSuggestionsResult = {
 const isChatModel = (name: string) => !/(?:embed|embedding|all-minilm)/i.test(name);
 
 /** POST JSON to the local backend and return parsed JSON, or throw a readable error. */
+type View = "lane" | "records";
+
+function viewFromHash(hash: string): View {
+  return hash === "#records" ? "records" : "lane";
+}
+
+type RecordSummary = {
+  serial: string;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  mileage: number | null;
+  completeness: string | null;
+  incomplete: boolean;
+  conflicting: boolean;
+  open_recommendations: number;
+  history_count: number;
+};
+
+type RecordsPage = { total: number; count: number; limit: number; offset: number; vehicles: RecordSummary[] };
+
+const RECORDS_PAGE_SIZE = 25;
+
+function RecordsView({ onOpen }: { onOpen: (serial: string) => void }) {
+  const [query, setQuery] = useState("");
+  const [submitted, setSubmitted] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [page, setPage] = useState<RecordsPage | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams({ q: submitted, limit: String(RECORDS_PAGE_SIZE), offset: String(offset) });
+        const response = await fetch(`/api/copilot/vehicles?${params}`, { headers: { Accept: "application/json" } });
+        // The dev proxy answers in plain text when the backend is down; never surface a JSON parse error.
+        const text = await response.text();
+        let data: (RecordsPage & { detail?: string }) | null = null;
+        try {
+          data = JSON.parse(text) as RecordsPage & { detail?: string };
+        } catch {
+          data = null;
+        }
+        if (!response.ok || !data) {
+          throw new Error(data?.detail ?? `Could not load vehicle records (HTTP ${response.status}). Check that the backend is running, then try again.`);
+        }
+        if (!cancelled) setPage(data);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Could not load vehicle records. Check that the backend is running.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [submitted, offset]);
+
+  function search(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setOffset(0);
+    setSubmitted(query.trim());
+  }
+
+  const total = page?.total ?? 0;
+  const first = total === 0 ? 0 : offset + 1;
+  const last = Math.min(offset + RECORDS_PAGE_SIZE, total);
+
+  return (
+    <section className="records-view" aria-labelledby="records-title">
+      <div className="page-heading"><div><p className="eyebrow">VEHICLE RECORDS</p><h1 id="records-title">All vehicle records</h1><p className="page-subtitle">Browse or search every synthetic record. Select a vehicle to open it in the Service lane.</p></div></div>
+      <div className="lookup-card">
+        <form className="lookup-form" onSubmit={search} role="search">
+          <label className="sr-only" htmlFor="records-search">Search by serial, make, model, or year</label>
+          <div className="input-wrap"><span className="input-icon">⌕</span><input id="records-search" value={query} onChange={(event) => setQuery(event.target.value)} autoComplete="off" placeholder="Search serial, make, model, or year (e.g. Northstar, 2021)" /><button type="button" className={`clear-input ${query ? "visible" : ""}`} onClick={() => { setQuery(""); setOffset(0); setSubmitted(""); }} aria-label="Clear search">×</button></div>
+          <button className="primary-button" type="submit">Search <span>→</span></button>
+        </form>
+        <p className="records-summary" aria-live="polite">{loading ? "Loading records…" : error ? "" : total === 0 ? (submitted ? `No records match “${submitted}”.` : "No records found.") : `Showing ${first.toLocaleString()}–${last.toLocaleString()} of ${total.toLocaleString()} records${submitted ? ` matching “${submitted}”` : ""}`}</p>
+        {error && <p className="ai-error" role="alert">{error}</p>}
+      </div>
+      {page && page.vehicles.length > 0 && (
+        <div className="records-table-wrap">
+          <table className="records-table">
+            <thead><tr><th scope="col">Serial</th><th scope="col">Vehicle</th><th scope="col">Mileage</th><th scope="col">Status</th><th scope="col">Open items</th><th scope="col">History</th></tr></thead>
+            <tbody>
+              {page.vehicles.map((record) => (
+                <tr key={record.serial}>
+                  <td><button type="button" className="record-link" onClick={() => onOpen(record.serial)}>{record.serial}</button></td>
+                  <td>{[record.year, record.make, record.model].filter(Boolean).join(" ")}</td>
+                  <td>{formatMiles(record.mileage)}</td>
+                  <td><span className={`record-pill ${record.incomplete || record.conflicting ? "incomplete" : ""}`}>{record.completeness ?? "Unknown"}</span></td>
+                  <td>{record.open_recommendations}</td>
+                  <td>{record.history_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {total > RECORDS_PAGE_SIZE && (
+        <nav className="records-pager" aria-label="Records pages">
+          <button className="copy-button" type="button" disabled={offset === 0 || loading} onClick={() => setOffset(Math.max(0, offset - RECORDS_PAGE_SIZE))}>← Previous</button>
+          <span>Page {Math.floor(offset / RECORDS_PAGE_SIZE) + 1} of {Math.ceil(total / RECORDS_PAGE_SIZE)}</span>
+          <button className="copy-button" type="button" disabled={last >= total || loading} onClick={() => setOffset(offset + RECORDS_PAGE_SIZE)}>Next →</button>
+        </nav>
+      )}
+    </section>
+  );
+}
+
 type ServiceFormState = {
   recommendationName: string | null;
   serviceName: string;
@@ -174,6 +289,23 @@ function TelemetryPanel({ telemetry }: { telemetry?: ObdTelemetry }) {
 }
 
 export default function Home() {
+  // "lane" = vehicle lookup and service work; "records" = list of all records. Driven by the URL hash
+  // (#lane / #records) so the sidebar links and browser back/forward switch views.
+  const [view, setView] = useState<View>("lane");
+  useEffect(() => {
+    const sync = () => setView(viewFromHash(window.location.hash));
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
+
+  function openRecord(recordSerial: string) {
+    if (window.location.hash !== "#lane") window.location.hash = "#lane";
+    setView("lane");
+    window.scrollTo({ top: 0 });
+    void lookup(recordSerial);
+  }
+
   const [serial, setSerial] = useState("");
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [missingSerial, setMissingSerial] = useState<string | null>(null);
@@ -206,8 +338,10 @@ export default function Home() {
     async function loadAiModels() {
       try {
         const response = await fetch("/api/copilot/chat/models", { headers: { Accept: "application/json" } });
-        const data = (await response.json()) as { models?: string[]; detail?: string };
-        if (!response.ok) throw new Error(data.detail ?? "Local Ollama is unavailable.");
+        const data = (await response.json().catch(() => ({}))) as { models?: string[]; detail?: string };
+        if (!response.ok || !Array.isArray(data.models)) {
+          throw new Error(data.detail ?? "Local Ollama or the backend is unavailable. Start them and reload the page.");
+        }
         const chatModels = (data.models ?? []).filter(isChatModel);
         if (cancelled) return;
         setAiModels(chatModels);
@@ -435,12 +569,13 @@ export default function Home() {
         </a>
         <div className="dealer-switcher"><span className="dealer-icon">N</span><span className="dealer-copy"><strong>Northside Motors</strong><small>Service department</small></span><span className="chevron">⌄</span></div>
         <p className="nav-label">WORKSPACE</p>
-        <nav aria-label="Main navigation"><a className="nav-item active" href="#main"><span className="nav-icon">⌕</span> Service lane</a><a className="nav-item muted" href="#demo-note"><span className="nav-icon">▤</span> Vehicle records <span className="soon">DEMO</span></a></nav>
-        <div className="sidebar-bottom"><div className="demo-card"><span className="demo-spark">✳</span><strong>Demo workspace</strong><p>250 fictional vehicle records with example service histories and rules.</p><a href="#demo-note">About this demo <span>↗</span></a></div><div className="advisor-profile"><span className="avatar">JD</span><span><strong>Jordan Davis</strong><small>Service advisor</small></span><span className="more">···</span></div></div>
+        <nav aria-label="Main navigation"><a className={`nav-item ${view === "lane" ? "active" : ""}`} href="#lane" aria-current={view === "lane" ? "page" : undefined}><span className="nav-icon">⌕</span> Service lane</a><a className={`nav-item ${view === "records" ? "active" : ""}`} href="#records" aria-current={view === "records" ? "page" : undefined}><span className="nav-icon">▤</span> Vehicle records</a></nav>
+        <div className="sidebar-bottom"><div className="advisor-profile"><span className="avatar">JD</span><span><strong>Jordan Davis</strong><small>Service advisor</small></span><span className="more">···</span></div></div>
       </aside>
 
       <main id="main" className="main-content">
-        <header className="topbar"><div className="breadcrumbs">Workspace <span>/</span> <strong>Service lane</strong></div><div className="topbar-right"><button className="theme-toggle" type="button" onClick={toggleTheme} aria-label="Toggle light and dark theme" title="Toggle light and dark theme"><span aria-hidden="true">◐</span><span className="theme-toggle-label">Theme</span></button><span className="live-dot" /> Synthetic data <span className="top-divider" /><a className="help-button" href="#demo-note" aria-label="About this demo" title="About this demo">?</a></div></header>
+        <header className="topbar"><div className="breadcrumbs">Workspace <span>/</span> <strong>{view === "records" ? "Vehicle records" : "Service lane"}</strong></div><nav className="mobile-view-switch" aria-label="Views"><a href="#lane" className={view === "lane" ? "active" : ""}>Lane</a><a href="#records" className={view === "records" ? "active" : ""}>Records</a></nav><div className="topbar-right"><button className="theme-toggle" type="button" onClick={toggleTheme} aria-label="Toggle light and dark theme" title="Toggle light and dark theme"><span aria-hidden="true">◐</span><span className="theme-toggle-label">Theme</span></button><span className="live-dot" /> Synthetic data <span className="top-divider" /><a className="help-button" href="#demo-note" aria-label="About this demo" title="About this demo">?</a></div></header>
+        {view === "records" ? <RecordsView onOpen={openRecord} /> : (<>
         <section className="page-heading"><div><p className="eyebrow">SERVICE LANE</p><h1>Good morning, Jordan <span className="wave">✳</span></h1><p className="page-subtitle">Get ready for the next conversation. Start with a vehicle’s service history.</p></div><div className="date-chip"><span>◷</span> Demo appointments <strong>8</strong></div></section>
 
         <section className="lookup-card" aria-labelledby="lookup-title">
@@ -474,6 +609,8 @@ export default function Home() {
         </div>}
 
         {missingSerial && <section className="empty-result"><div className="empty-icon">⌕</div><h2>No demo record found for {missingSerial}</h2><p>This serial number is not in the synthetic dealership dataset. Check the number, register the vehicle in dealership service records, or request service history from another dealership. The requests below are drafts for the advisor to review.</p><div className="path-grid"><article className="path-card"><h3>Add to dealership service records</h3><p>Prepare a draft intake request. Confirm vehicle details and customer authorization through dealership procedures.</p><button type="button" onClick={() => setRecordDraft(missingRecordDraft(missingSerial, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for the customer or advisor to use with another dealership. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(missingRecordDraft(missingSerial, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</section>}
+
+        </>)}
 
         <footer id="demo-note" className="page-footer"><span>ⓘ</span> Demo only: synthetic vehicle records and example maintenance rules. Verify any safety-related item against an approved source.</footer>
       </main>
