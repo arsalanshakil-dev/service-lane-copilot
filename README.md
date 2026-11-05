@@ -2,7 +2,7 @@
 
 For a quick project overview, see [`CONTEXT.md`](CONTEXT.md). Product requirements and acceptance criteria are maintained in [`SERVICE_LANE_COPILOT_SPEC.md`](SERVICE_LANE_COPILOT_SPEC.md).
 
-Service Lane Copilot is a synthetic-data demo for dealership service advisors. The project uses a **Next.js + React + TypeScript frontend** and a **Python FastAPI backend**. The backend reads the 250 synthetic vehicle records from `data/vehicles.json` and exposes them through a **Model Context Protocol (MCP)** server and REST API for MCP-compatible agent harnesses and the web UI. MCP remains read-only; the local REST mileage endpoint is the sole write path and only updates synthetic records.
+Service Lane Copilot is a synthetic-data demo for dealership service advisors. The project uses a **Next.js + React + TypeScript frontend** and a **Python FastAPI backend**. The Python backend reads and updates synthetic vehicle records in **Supabase Postgres** and exposes them through a **Model Context Protocol (MCP)** server and REST API for MCP-compatible agent harnesses and the web UI. The 250-record `data/vehicles.json` file is a seed fixture, not a runtime fallback. MCP remains read-only; the local REST mileage endpoint is the sole write path.
 
 All vehicle details, service events, mileage, recommendations, and maintenance thresholds are fictional demo content. Do not use the demo rules to make real maintenance decisions. No real dealership systems, customers, or outside history services are connected.
 
@@ -26,7 +26,7 @@ flowchart LR
     API -->|Swagger /docs · OpenAPI /openapi.json| Docs[Backend API docs]
 ```
 
-The web app chat uses only local Ollama and calls the same registered MCP server in-process. The MCP tools and resources use the shared synthetic dataset. Recommendations are explicit demo data with visible history evidence. Drafts are returned for advisor review only; the app does not send or submit them.
+The web app chat uses only local Ollama and calls the same registered MCP server in-process. The MCP tools and resources use the shared Supabase-backed synthetic records. Recommendations are explicit demo data with visible history evidence. Drafts are returned for advisor review only; the app does not send or submit them.
 
 ## Folder structure
 
@@ -40,20 +40,26 @@ service-lane-copilot/
 ├── README.md                         # Setup, architecture, and folder map
 ├── SERVICE_LANE_COPILOT_SPEC.md      # Requirements and acceptance criteria
 ├── data/
-│   └── vehicles.json                 # 250 synthetic vehicle/history records
+│   └── vehicles.json                 # 250 synthetic seed fixture records
+├── supabase/
+│   ├── config.toml                   # Local Supabase project configuration
+│   └── migrations/                   # Postgres schema, RLS, and grants
 ├── docs/
 │   ├── feature-spec-template.md      # Template for a new feature spec
-│   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits\n│   └── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
+│   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits\n│   ├── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries\n│   └── feature-spec-supabase-database.md # Supabase runtime store and seed behavior
 ├── backend/
+│   ├── .env.example                  # Backend-only Supabase environment template
 │   ├── requirements.txt              # Pinned Python dependencies
+│   ├── seed_supabase.py              # Idempotent synthetic fixture loader
 │   ├── mcp_stdio.py                  # Local stdio MCP launcher
 │   ├── tests/
-│   │   └── test_mileage.py           # Mileage replacement and API regression checks
+│   │   ├── test_mileage.py           # Mileage replacement and API regression checks
+│   │   └── test_supabase_store.py    # Supabase adapter, seed, and migration checks
 │   └── app/
 │       ├── main.py                   # REST, local chat, mileage, and HTTP MCP routes
 │       ├── local_agent.py            # Local Ollama and MCP tool orchestration
 │       ├── mcp_server.py             # Read-only MCP tools and resources
-│       └── data_store.py             # Synthetic data loader and mileage update
+│       └── data_store.py             # Supabase data access and mileage update
 └── frontend/
     ├── package.json                  # Frontend scripts and dependencies
     ├── next.config.ts                # Backend API rewrite
@@ -77,7 +83,11 @@ The tree shows the main source files and intentionally omits generated folders s
 | `SERVICE_LANE_COPILOT_SPEC.md` | Product requirements, boundaries, acceptance criteria, and the verification plan. |
 | `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |\n| `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
 | `README.md` | Setup instructions, architecture diagram, folder tree, file guide, endpoints, and sample serial numbers. |
-| `data/vehicles.json` | The 250 fictional vehicle records, service histories, and explicit demo recommendation examples used by the app. |
+| `data/vehicles.json` | The 250 fictional seed records; loaded into Supabase by the seed command and never read at runtime. |
+| `supabase/config.toml` and `supabase/migrations/` | Local Supabase configuration and private vehicle table schema with row-level security. |
+| `docs/feature-spec-supabase-database.md` | Approved Supabase runtime, credentials, seed, and failure behavior. |
+| `backend/seed_supabase.py` | Idempotently loads the synthetic JSON fixture into `public.vehicle_records`. |
+| `backend/app/data_store.py` | Supabase runtime reads and advisor mileage updates. |
 | `backend/requirements.txt` | Pinned Python packages for FastAPI, Uvicorn, and MCP. |
 | `backend/mcp_stdio.py` | Entry point for MCP clients that start the server as a local subprocess. |
 | `backend/app/main.py` | FastAPI REST, local-chat and mileage endpoints, and mounted Streamable HTTP MCP endpoint. |
@@ -107,6 +117,29 @@ Next.js generates `frontend/AGENTS.md` with framework-specific coding guidance w
 - Node.js 20.9 or newer for Next.js.
 - Python 3.11 or newer for the FastAPI backend and current MCP Python SDK.
 - npm (included with Node.js) and pip (included with Python).
+
+## Supabase database setup
+
+The backend requires a Supabase Postgres instance. You can use the local Supabase stack or a Supabase project you manage. This repository does not provision a hosted project.
+
+### Local Supabase
+
+1. Install the Supabase CLI and start a Docker-compatible container runtime.
+2. From the project root, run:
+
+```powershell
+supabase start
+supabase db reset
+```
+
+3. Copy `backend/.env.example` to `backend/.env`. Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` to the local API URL and local secret/service-role key printed by `supabase status`.
+4. From `backend/`, install requirements and run `python seed_supabase.py`. The command upserts the 250 synthetic fixtures and can be rerun safely.
+
+### Hosted Supabase project
+
+Apply the repository migration to your own project using the Supabase CLI linked to that project, then set its project URL and secret key in the backend's ignored `backend/.env`. Run `python seed_supabase.py` from `backend/` to load the synthetic demo rows. Keep the secret key on the Python backend; never place it in frontend environment variables or browser code. The app returns a safe unavailable response when Supabase is missing and does not fall back to the JSON fixture.
+
+The database table has row-level security enabled and grants access only to the backend service role. Keep the API and MCP server local to the machine for this demo.
 
 ## Run locally on Windows PowerShell
 
@@ -162,7 +195,7 @@ The exact configuration-file format differs by harness. Replace `<project>` with
 
 All MCP tools are read-only. Draft tools return `sent: false` and do not contact a customer, dealership, vehicle, or external service. The MCP endpoint binds to localhost with the dev server. Do not expose it to a network or public hostname without adding authentication and deployment security controls.
 
-Run backend regression checks from `backend/` with `python -m unittest discover -s tests -v`. The local mileage update is the only REST operation that changes the synthetic JSON dataset.\n\nDirect runtime versions are pinned in `frontend/package.json` and `backend/requirements.txt`. The frontend requires Node.js 20.9 or newer.
+Run backend regression checks from `backend/` with `python -m unittest discover -s tests -v`. The local mileage update is the only REST operation that changes synthetic records in Supabase.\n\nDirect runtime versions are pinned in `frontend/package.json` and `backend/requirements.txt`. The frontend requires Node.js 20.9 or newer.
 
 ## Sample serial numbers
 
