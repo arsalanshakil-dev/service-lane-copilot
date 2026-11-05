@@ -117,6 +117,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `backend/tests/test_supabase_store.py` | Database adapter, fixture seed validation, and migration access checks. |
 | `backend/app/ai_assist.py` | Local Ollama customer drafts and AI suggestions; drops suggestions without cited history or with prices, intervals, or duplicates. |
 | `backend/tests/test_ai_assist.py` | AI draft and suggestion checks: validation rules, backend-built evidence, limited records, 404/503/504/502 mapping, and no writes. |
+| `backend/tests/test_ai_summary.py` | Records AI summary checks: backend-built "Needs now", limitation text, prices rejected, telemetry excluded, 404/503/504/502, no writes. |
 | `backend/tests/test_local_agent.py` | Local Ollama chat checks: `think: false` payload, grounded MCP tool round-trip, 503/504 error mapping, and the dealership-only topic guardrail. |
 | `backend/tests/test_mileage.py` | Standard-library regression checks for replacement, provenance, conflict, and API validation. |
 | `backend/tests/test_record_service.py` | Completed-service checks: persistence, newest-first history, Completed status, odometer rules, 404/422 without writes, and no MCP write tool. |
