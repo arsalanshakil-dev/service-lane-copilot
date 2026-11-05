@@ -11,15 +11,16 @@ This MVP uses synthetic vehicles, service histories, and clearly labeled example
 - **Frontend:** Next.js App Router with React and TypeScript in `frontend/`.
 - **Backend:** Python FastAPI REST API plus a standard MCP server in `backend/`.
 - **Backend docs:** Swagger UI at `/docs`, OpenAPI JSON at `/openapi.json`, and interface summary at `/api/capabilities`.
-- **Dataset:** 250 synthetic records in `data/vehicles.json`, loaded by the backend.
-- **Manual mileage:** advisor-reviewed `PATCH /api/vehicles/{serial}/mileage` replaces the current value in the local synthetic dataset; this is the only REST write route, and MCP remains read-only.
+- **Runtime database:** Supabase Postgres, accessed only by the Python backend. `data/vehicles.json` is the checked-in synthetic seed fixture, not a runtime fallback.
+- **Synthetic seed:** 250 synthetic vehicle records can be loaded with the idempotent backend seed command.
+- **Manual mileage:** advisor-reviewed `PATCH /api/vehicles/{serial}/mileage` replaces the current value in the synthetic record stored in Supabase; this is the only REST write route, and MCP remains read-only.
 - **API connection:** Next.js rewrites `/api/copilot/*` to the local FastAPI service, avoiding a separate browser CORS configuration for the demo.
 - **Agent connection:** MCP Streamable HTTP at `/mcp` and stdio for local subprocess-based agent harnesses.
 - **Local runtime:** Node.js 20.9+ and Python 3.11+.
 
 ## MCP interface
 
-Expose the synthetic dataset to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the validated synthetic data loader with REST. MCP remains read-only; the REST API has one advisor-reviewed synthetic mileage write route.
+Expose the synthetic records to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the Supabase-backed vehicle store with REST. MCP remains read-only; the REST API has one advisor-reviewed synthetic mileage write route.
 
 - Tools: search records, get one vehicle record, prepare customer drafts, prepare record-intake/outside-history drafts, and summarize the dataset.
 - Resources: a demo safety guide and individual synthetic vehicle records.
@@ -69,6 +70,16 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Synthetic vehicle records include serial number, make/model/year, recorded odometer mileage and timestamp, service events, and any missing-data indicators.
 - No match, missing mileage, conflicting mileage, or sparse history must be shown as a data limitation; the app must not silently fill gaps.
 
+### Supabase vehicle database
+
+- Supabase Postgres is the runtime source of truth for vehicle records. The backend accesses it through the official Python SDK; the browser and MCP clients never receive database credentials.
+- `public.vehicle_records` stores one record per normalized serial number, with the existing structured vehicle object in a JSONB column and an `updated_at` timestamp. The JSON fixture is used only by the seed command.
+- Checked-in migrations enable RLS and grant no direct access to `PUBLIC`, `anon`, or `authenticated`; only the backend server key has table access.
+- Configure `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in the ignored `backend/.env`. The same config supports hosted Supabase or the local Supabase stack. Never place the key in frontend code or Git.
+- Missing configuration, network errors, or migration errors produce a clear unavailable response. The backend never falls back to JSON at runtime.
+- The local API and MCP endpoint remain bound to localhost. Hosted-project provisioning, secret entry, and migration execution against a hosted project require an explicit separate action.
+- See `docs/feature-spec-supabase-database.md`.
+
 ### Manual mileage updates
 
 - An advisor can replace the current mileage for any known synthetic vehicle, whether the existing value is missing or needs correction.
@@ -102,7 +113,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 
 ## Safety, privacy, and trust boundaries
 
-- Use synthetic data only; do not include client or customer data, secrets, or production credentials.
+- Use synthetic data only; do not include client or customer data, secrets, or production credentials. Supabase URL/key settings remain backend-side; never commit or expose the server key.
 - Do not claim that a repair is necessary or that a safety defect has been diagnosed.
 - Show the evidence and rule behind every suggested service so the advisor can check it.
 - Treat missing, stale, or contradictory records as uncertainty that requires advisor follow-up.
@@ -116,7 +127,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Looking up real vehicles from their serial number.
 - Sending messages, submitting registration changes, creating quotes in a live system, booking appointments, or authorizing repairs.
 - Using a generative model to decide which maintenance is due.
-- Production deployment or claims that demo rules are valid for any real make/model/year.
+- Provisioning/writing to a hosted Supabase project, production dealership data, public API deployment, or claims that demo rules are valid for any real make/model/year.
 
 ## Verification plan
 
@@ -137,6 +148,8 @@ Before calling the MVP ready, automate these behaviors where practical and recor
 13. Ollama unavailable, no installed model, invalid tool, and MCP tool failure produce clear errors without making external calls.
 14. Chat cannot send drafts, write a vehicle record, book service, or control a vehicle; history is not persisted server-side.
 15. Manual mileage can replace the current value with date and source for a known serial; invalid/future values are rejected, unknown serials return 404, and conflicting/incomplete evidence keeps recommendations paused.
+16. Supabase migrations create the private record table with RLS/privileges; idempotent seeding loads 250 synthetic records; API/MCP reads use the database, and mileage replacement persists while preserving unrelated record fields.
+17. Missing Supabase configuration or provider failure returns unavailable without JSON fallback; frontend and MCP callers cannot read or expose database keys.
 
 Review the code changes and evidence for each check before accepting them. A check that was not run is **unverified**, not passed. The existing verification plan defines expected behavior; it is not evidence that implementation has already passed.
 
@@ -204,6 +217,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - `docs/feature-spec-template.md` is the template for distinct features.
 - `docs/feature-spec-local-ollama-chat.md` defines the in-app assistant, local-only Ollama boundary, and full MCP capability access.
 - `docs/feature-spec-manual-mileage.md` defines advisor mileage replacement, provenance, and evidence limits.
+- `docs/feature-spec-supabase-database.md` defines the runtime Supabase store, local/hosted configuration, seed path, and security boundaries.
 - `frontend/app/` contains the Next.js page and styles.
 - `frontend/app/icon.svg` is the browser-tab favicon.
 - `frontend/next.config.ts` proxies browser API calls to FastAPI.
@@ -212,7 +226,9 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - `backend/app/local_agent.py` discovers local Ollama models and runs a bounded tool loop through the MCP server.
 - `frontend/app/chat-panel.tsx` provides the advisor-facing local agent chat.
 - `backend/mcp_stdio.py` is the local stdio launcher for MCP hosts.
-- `backend/app/data_store.py` loads shared synthetic data.
+- `backend/app/data_store.py` loads and updates vehicle records from Supabase.
+- `backend/seed_supabase.py` loads the synthetic JSON fixture into Supabase; it is not used for runtime reads.
+- `supabase/migrations/` tracks the database schema and access controls.
 - `backend/requirements.txt` pins Python and MCP dependencies.
 - `data/vehicles.json` stores the 250 vehicle records separately from the interface and API code.
 - `README.md` explains setup, local run commands, and sample vehicle scenarios.
