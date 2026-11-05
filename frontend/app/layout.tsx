@@ -13,7 +13,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en" suppressHydrationWarning>
       <body>
         {children}
-        <Script id="theme-preference" strategy="beforeInteractive">{`try { const theme = localStorage.getItem("service-lane-theme"); if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme; } catch {}`}</Script>
+        <Script id="theme-preference" strategy="beforeInteractive">{`try { const theme = localStorage.getItem("service-lane-theme"); if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme; else if (theme === "system") document.documentElement.dataset.theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; } catch {}`}</Script>
       </body>
     </html>
   );

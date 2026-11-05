@@ -3,6 +3,7 @@
 import { FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import ChatPanel, { RECORD_CHANGED_EVENT } from "./chat-panel";
 import { useAiModel } from "./ai-model";
+import { browserTimeZone, formatDateTime, formatTimeOfDay, supportedTimeZones, useThemePref, useTimeZone, type ThemePref } from "./display-prefs";
 import { AddVehicleForm, ChangeLog, HistoryRows, VehicleDetailsForm, useRecommendationEditor, type ChangeLogEntry } from "./record-editors";
 
 type Recommendation = {
@@ -114,6 +115,10 @@ const RECORDS_PAGE_SIZE = 25;
 function SettingsView() {
   const { models, model, setModel, refresh, loading, error } = useAiModel();
   const [saved, setSaved] = useState(false);
+  const theme = useThemePref();
+  const zone = useTimeZone();
+  const zones = supportedTimeZones();
+  const now = new Date().toISOString();
 
   function choose(name: string) {
     setModel(name);
@@ -138,6 +143,27 @@ function SettingsView() {
           {error && <p className="ai-error" role="alert">{error}</p>}
         </div>
         <p className="disclaimer">Models run on this computer through Ollama at 127.0.0.1:11434; nothing is sent to a cloud service. Larger models are slower on CPU-only machines. The choice is saved in this browser.</p>
+      </div>
+      <div className="panel settings-panel">
+        <div className="panel-title-row"><div><h3>Appearance</h3><div className="panel-subtitle">Light, dark, or follow this computer's setting</div></div><span className="draft-type">THIS BROWSER</span></div>
+        <div className="settings-field" role="radiogroup" aria-label="Theme">
+          {(["light", "dark", "system"] as ThemePref[]).map((option) => (
+            <label key={option} className="settings-radio"><input type="radio" name="theme" value={option} checked={theme.pref === option} onChange={() => theme.setPref(option)} /> {option === "system" ? "System (match the operating system)" : option === "dark" ? "Dark" : "Light"}</label>
+          ))}
+        </div>
+      </div>
+      <div className="panel settings-panel">
+        <div className="panel-title-row"><div><h3>Time zone</h3><div className="panel-subtitle">Used to show times such as change-log entries and telemetry samples</div></div><span className="draft-type">THIS BROWSER</span></div>
+        <div className="settings-field">
+          <label htmlFor="settings-time-zone">Show times in</label>
+          <div className="settings-control">
+            <select id="settings-time-zone" value={zone.pref} onChange={(event) => zone.setPref(event.target.value)}>
+              <option value="">Browser default ({browserTimeZone()})</option>
+              {zones.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </div>
+          <p className="settings-status" aria-live="polite">Example: {formatDateTime(now, zone.timeZone)} · Service-history and mileage dates are calendar dates and do not change.</p>
+        </div>
       </div>
     </section>
   );
@@ -353,13 +379,13 @@ async function copyText(value: string): Promise<boolean> {
   }
 }
 
-function formatTelemetryTime(timestamp: string): string {
-  const parsed = new Date(timestamp);
-  if (Number.isNaN(parsed.getTime())) return "Time unavailable";
-  return `${parsed.toLocaleTimeString("en-PK", { timeZone: "Asia/Karachi", hour: "2-digit", minute: "2-digit" })} PKT`;
+function formatTelemetryTime(timestamp: string, timeZone: string): string {
+  if (Number.isNaN(new Date(timestamp).getTime())) return "Time unavailable";
+  return formatTimeOfDay(timestamp, timeZone);
 }
 
 function TelemetryPanel({ telemetry }: { telemetry?: ObdTelemetry }) {
+  const { timeZone } = useTimeZone();
   const streams = telemetry?.streams ?? [];
   return (
     <section className="obd-card" aria-labelledby="obd-title">
@@ -380,7 +406,7 @@ function TelemetryPanel({ telemetry }: { telemetry?: ObdTelemetry }) {
         return <article className="obd-stream" key={stream.key}>
           <div className="obd-stream-title"><h4>{stream.label}</h4><strong>{latest.value.toLocaleString()} <small>{stream.unit}</small></strong></div>
           <svg className="obd-chart" viewBox="0 0 100 36" preserveAspectRatio="none" role="img" aria-label={`Simulated trend for ${stream.label}`}><polyline points={points} /></svg>
-          <p>{samples.length} simulated samples · Latest {formatTelemetryTime(latest.timestamp)}</p>
+          <p>{samples.length} simulated samples · Latest {formatTelemetryTime(latest.timestamp, timeZone)}</p>
         </article>;
       })}</div>}
       <div className="obd-source-note">Source: synthetic demo generator · No adapter connected</div>
@@ -392,6 +418,25 @@ export default function Home() {
   // "lane" = vehicle lookup and service work; "records" = list of all records. Driven by the URL hash
   // (#lane / #records) so the sidebar links and browser back/forward switch views.
   const [view, setView] = useState<View>("lane");
+  // Desktop sidebar can be hidden (remembered in this browser). Small screens always hide it.
+  const [sidebarHidden, setSidebarHidden] = useState(false);
+  useEffect(() => {
+    try {
+      setSidebarHidden(window.localStorage.getItem("service-lane-sidebar-hidden") === "1");
+    } catch {
+      // Storage unavailable: start with the sidebar shown.
+    }
+  }, []);
+  function toggleSidebar() {
+    setSidebarHidden((hidden) => {
+      try {
+        window.localStorage.setItem("service-lane-sidebar-hidden", hidden ? "0" : "1");
+      } catch {
+        // The toggle still works for this page view.
+      }
+      return !hidden;
+    });
+  }
   useEffect(() => {
     const sync = () => setView(viewFromHash(window.location.hash));
     sync();
@@ -555,15 +600,6 @@ export default function Home() {
     window.setTimeout(() => setToast(""), 2200);
   }
 
-  function toggleTheme() {
-    const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = nextTheme;
-    try {
-      window.localStorage.setItem("service-lane-theme", nextTheme);
-    } catch {
-      // The current page theme still changes if browser storage is unavailable.
-    }
-  }
 
   async function lookup(rawSerial: string) {
     const normalized = rawSerial.trim().toUpperCase();
@@ -669,8 +705,8 @@ export default function Home() {
   const incomplete = Boolean(vehicle && (vehicle.incomplete || vehicle.conflicting || vehicle.mileage == null));
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={`app-shell ${sidebarHidden ? "sidebar-hidden" : ""}`}>
+      <aside className="sidebar" id="app-sidebar">
         <a className="brand" href="#main" aria-label="Lane home">
           <span className="brand-mark" aria-hidden="true">L</span><span>lane<span className="brand-dot">.</span></span>
         </a>
@@ -681,7 +717,7 @@ export default function Home() {
       </aside>
 
       <main id="main" className="main-content">
-        <header className="topbar"><div className="breadcrumbs">Workspace <span>/</span> <strong>{view === "records" ? "Vehicle records" : view === "settings" ? "Settings" : "Service lane"}</strong></div><nav className="mobile-view-switch" aria-label="Views"><a href="#lane" className={view === "lane" ? "active" : ""}>Lane</a><a href="#records" className={view === "records" ? "active" : ""}>Records</a><a href="#settings" className={view === "settings" ? "active" : ""} aria-label="Settings">⚙</a></nav><div className="topbar-right"><button className="theme-toggle" type="button" onClick={toggleTheme} aria-label="Toggle light and dark theme" title="Toggle light and dark theme"><span aria-hidden="true">◐</span><span className="theme-toggle-label">Theme</span></button><span className="live-dot" /> Synthetic data <span className="top-divider" /><a className="help-button" href="#demo-note" aria-label="About this demo" title="About this demo">?</a></div></header>
+        <header className="topbar"><button className="copy-button sidebar-toggle" type="button" onClick={toggleSidebar} aria-expanded={!sidebarHidden} aria-controls="app-sidebar" title={sidebarHidden ? "Show sidebar" : "Hide sidebar"}><span aria-hidden="true">☰</span><span className="sr-only">{sidebarHidden ? "Show sidebar" : "Hide sidebar"}</span></button><div className="breadcrumbs">Workspace <span>/</span> <strong>{view === "records" ? "Vehicle records" : view === "settings" ? "Settings" : "Service lane"}</strong></div><nav className="mobile-view-switch" aria-label="Views"><a href="#lane" className={view === "lane" ? "active" : ""}>Lane</a><a href="#records" className={view === "records" ? "active" : ""}>Records</a><a href="#settings" className={view === "settings" ? "active" : ""} aria-label="Settings">⚙</a></nav><div className="topbar-right"><span className="live-dot" /> Synthetic data <span className="top-divider" /><a className="help-button" href="#demo-note" aria-label="About this demo" title="About this demo">?</a></div></header>
         {view === "settings" ? <SettingsView /> : view === "records" ? <RecordsView onOpen={openRecord} /> : (<>
         <section className="page-heading"><div><p className="eyebrow">SERVICE LANE</p><h1>Good morning, Jordan <span className="wave">✳</span></h1><p className="page-subtitle">Get ready for the next conversation. Start with a vehicle’s service history.</p></div></section>
 

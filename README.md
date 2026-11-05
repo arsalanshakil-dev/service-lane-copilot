@@ -8,6 +8,23 @@ All vehicle details, service events, mileage, recommendations, and maintenance t
 
 An OBD-II/CAN adapter is a planned optional source for a later connected version. It may provide the vehicle VIN; an approved VIN decoder/catalog can resolve make, model, and year. Odometer availability varies by vehicle and adapter, so the app must handle unavailable readings explicitly. OBD data does not provide dealership service history; that remains a separate data source. The current demo does not connect to a vehicle.
 
+## Features and how to use them
+
+Open `http://localhost:3000`. All data is synthetic demo data; nothing is sent to customers or outside services.
+
+| Area | What you can do |
+| --- | --- |
+| **Service lane** | Look up a vehicle by serial (or pick a sample). See mileage, simulated OBD-II telemetry, stored recommendations with their evidence and demo rule, and service history. |
+| **Vehicle records** | Browse and search all 1,000 records (25 per page), open one in the Service lane, **+ Add vehicle**, and open an **✦ AI summary** per row ("Needs now" copied from the record plus short local-AI context). |
+| **Record a service** | **✓ Mark as done** on a recommendation or **+ Record service** in Service history. Saves a history entry, marks the recommendation Completed, and raises current mileage when the odometer is higher. |
+| **Edit a record** | **Edit details** (make, model, year, serial), **Edit** a history entry (history can be corrected but never deleted), **+ Add recommendation** / **Edit** / **Remove** (Advisor-entered), **Update mileage**. Every save appears in the record's **Change log**. |
+| **Customer drafts** | Instant template drafts (Explanation, Quote, Follow-up) plus **✦ Generate with local AI**. Drafts are editable and never sent. |
+| **AI suggestions** | **✦ Suggest more with local AI**: up to three unverified extra items based on mileage and history; items with prices, without history evidence, or done too recently are removed. |
+| **Ask Copilot (chat)** | Ask dealership-service questions about records (general questions are refused). The assistant can propose record changes; each appears as a card and is saved only when you click **Apply change**. |
+| **Settings** | **AI model** for every AI feature, **Appearance** (Light, Dark, System), and **Time zone** for times of day (change log, telemetry). Saved in this browser. |
+| **Layout** | ☰ in the top bar hides or shows the sidebar on desktop (remembered in this browser). |
+| **MCP** | Local MCP endpoint for agent tools: read, draft, and validated write tools (see below). |
+
 ## Architecture at a glance
 
 ```mermaid
@@ -88,6 +105,7 @@ service-lane-copilot/
         ├── page.tsx                  # Main advisor screen
         ├── chat-panel.tsx             # Advisor chat using local Ollama and MCP
         ├── ai-model.ts               # App-wide AI model choice (Settings) shared by all AI features
+        ├── display-prefs.ts          # Theme and time-zone preferences (Settings)
         ├── record-editors.tsx        # Add vehicle, edit details/history/recommendations, change log
         ├── layout.tsx                # App shell and metadata
         └── globals.css               # Global styles
@@ -142,6 +160,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/app/page.tsx` | Main advisor lookup and service-history screen, Vehicle records list (search and paging), Mark as done / Record service forms, template and local-AI customer drafts, AI suggestions section, and the local chat panel. |
 | `frontend/app/layout.tsx` | Shared page shell and document metadata. |
 | `frontend/app/record-editors.tsx` | Add vehicle form, Edit details, editable history rows, recommendation editor, and Change log panel. |
+| `frontend/app/display-prefs.ts` | Theme (Light/Dark/System) and time-zone preferences saved in the browser, plus helpers that format times in the chosen zone. |
 | `frontend/app/ai-model.ts` | `useAiModel()` hook: installed local chat models and the app-wide model chosen in Settings (saved in the browser). |
 | `frontend/app/chat-panel.tsx` | In-app assistant conversation, local model selection, and MCP tool usage display. |
 | `frontend/app/icon.svg` | Service Lane Copilot favicon for browser tabs. |
