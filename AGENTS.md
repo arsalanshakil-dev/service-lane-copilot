@@ -43,6 +43,8 @@ For every project change on its ticket branch:
 ## Project safety rules
 
 - Use synthetic data only in the demo. Never add client, customer, production, or real vehicle records, credentials, or secrets.
+- Supabase Postgres is the runtime source of truth for synthetic vehicle records; `data/vehicles.json` is only an importable seed fixture. Never add a JSON runtime fallback.
+- Keep `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in the Python backend environment only. Never expose a Supabase secret key to the frontend, browser bundle, logs, screenshots, or chat.
 - Keep all recommendation content grounded in explicit record fields and synthetic demo rules. Show evidence. Missing, stale, or contradictory data means uncertainty and advisor follow-up.
 - Demo rules are not real maintenance advice. Safety-related items are verification prompts, not diagnoses.
 - The MCP tools must remain read-only. Draft tools may create text in memory and return it, but must never send, submit, book, write a record, call an outside service, or control a vehicle.
