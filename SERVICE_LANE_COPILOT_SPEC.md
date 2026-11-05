@@ -71,6 +71,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - At 375 px width the page has no horizontal scroll. The icon sidebar is hidden below 760 px; navigation stays in the top bar.
 - Interactive controls show a visible keyboard focus ring and have tap targets of roughly 28 px or more. Controls that do nothing in the demo are not shown as interactive (no dropdown chevron on the dealer card; "?" links to the demo note).
 - Service-history rows show the date on one line and the detail under the service name; the draft editor uses the app font.
+- Decluttered vehicle page (issue #54): the vehicle view uses tabs — **Overview** (recommendations and AI suggestions), **History**, **Telemetry**, **Change log** — and resets to Overview on each lookup; the mileage and its update form stay above the tabs. Recommendations are compact rows (name, status, one-line evidence, Mark as done, and a visible ⚠ Verify marker for safety items) with the explanation, full evidence, rule text, and Edit/Remove under **Details**. The greeting is hidden while a vehicle is open, the lookup shows 5 sample serials plus "More in Vehicle records", the static Record details panel was removed, and repeated disclaimers are reduced to one short line per section (full text in tooltips) plus the page footer.
 
 ### Local development origin
 
