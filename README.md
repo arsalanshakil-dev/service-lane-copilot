@@ -2,7 +2,7 @@
 
 For a quick project overview, see [`CONTEXT.md`](CONTEXT.md). Product requirements and acceptance criteria are maintained in [`SERVICE_LANE_COPILOT_SPEC.md`](SERVICE_LANE_COPILOT_SPEC.md).
 
-Service Lane Copilot is a synthetic-data demo for dealership service advisors. The project uses a **Next.js + React + TypeScript frontend** and a **Python FastAPI backend**. The backend reads the 250 synthetic vehicle records from `data/vehicles.json` and exposes them through both a read-only REST API and a standard **Model Context Protocol (MCP)** server for MCP-compatible agent harnesses.
+Service Lane Copilot is a synthetic-data demo for dealership service advisors. The project uses a **Next.js + React + TypeScript frontend** and a **Python FastAPI backend**. The backend reads the 250 synthetic vehicle records from `data/vehicles.json` and exposes them through a **Model Context Protocol (MCP)** server and REST API for MCP-compatible agent harnesses and the web UI. MCP remains read-only; the local REST mileage endpoint is the sole write path and only updates synthetic records.
 
 All vehicle details, service events, mileage, recommendations, and maintenance thresholds are fictional demo content. Do not use the demo rules to make real maintenance decisions. No real dealership systems, customers, or outside history services are connected.
 
@@ -14,7 +14,7 @@ An OBD-II/CAN adapter is a planned optional source for a later connected version
 flowchart LR
     Advisor[Service advisor] -->|serial number, review, edit drafts| Web[Next.js web app and chat\nfrontend/app]
     Web -->|/api/copilot/* rewrite| API[FastAPI REST and chat API\nbackend/app/main.py]
-    API --> Store[Shared synthetic data loader\nbackend/app/data_store.py]
+    API -->|lookup and advisor mileage update| Store[Shared synthetic data loader and mileage writer\nbackend/app/data_store.py]
     Store --> Data[(250 synthetic records\ndata/vehicles.json)]
     API --> Agent[Local agent loop\nbackend/app/local_agent.py]
     Agent -->|HTTP loopback only · /api/chat| Ollama[Local Ollama\n127.0.0.1:11434]
@@ -41,15 +41,15 @@ service-lane-copilot/
 │   └── vehicles.json                 # 250 synthetic vehicle/history records
 ├── docs/
 │   ├── feature-spec-template.md      # Template for a new feature spec
-│   └── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
+│   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits\n│   └── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
 ├── backend/
 │   ├── requirements.txt              # Pinned Python dependencies
 │   ├── mcp_stdio.py                  # Local stdio MCP launcher
 │   └── app/
-│       ├── main.py                   # REST, local chat routes, and HTTP MCP mount
+│       ├── main.py                   # REST, local chat, mileage, and HTTP MCP routes
 │       ├── local_agent.py            # Local Ollama and MCP tool orchestration
-│       ├── mcp_server.py             # MCP tools and resources
-│       └── data_store.py             # Shared read-only data loader
+│       ├── mcp_server.py             # Read-only MCP tools and resources
+│       └── data_store.py             # Synthetic data loader and mileage update
 └── frontend/
     ├── package.json                  # Frontend scripts and dependencies
     ├── next.config.ts                # Backend API rewrite
@@ -71,15 +71,15 @@ The tree shows the main source files and intentionally omits generated folders s
 | `CONTEXT.md` | Short onboarding explanation of the project and links to the authoritative docs. |
 | `MEMORY.md` | Verified architecture, local run commands, current implementation status, and known gaps. |
 | `SERVICE_LANE_COPILOT_SPEC.md` | Product requirements, boundaries, acceptance criteria, and the verification plan. |
-| `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |
+| `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |\n| `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
 | `README.md` | Setup instructions, architecture diagram, folder tree, file guide, endpoints, and sample serial numbers. |
 | `data/vehicles.json` | The 250 fictional vehicle records, service histories, and explicit demo recommendation examples used by the app. |
 | `backend/requirements.txt` | Pinned Python packages for FastAPI, Uvicorn, and MCP. |
 | `backend/mcp_stdio.py` | Entry point for MCP clients that start the server as a local subprocess. |
-| `backend/app/main.py` | FastAPI application, REST and local-chat endpoints, and mounted Streamable HTTP MCP endpoint. |
+| `backend/app/main.py` | FastAPI REST, local-chat and mileage endpoints, and mounted Streamable HTTP MCP endpoint. |
 | `backend/app/mcp_server.py` | MCP server setup, read-only tools, resources, and draft responses exposed to both harnesses and in-app chat. |
 | `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions. |
-| `backend/app/data_store.py` | Shared loader and validation for the synthetic JSON records. |
+| `backend/app/data_store.py` | Shared synthetic JSON loader, validation, and local REST mileage update. |\n| `backend/tests/test_mileage.py` | Standard-library regression checks for replacement, provenance, conflict, and API validation. |
 | `frontend/package.json` | Frontend scripts and pinned direct dependencies. |
 | `frontend/package-lock.json` | Exact resolved frontend dependency versions for repeatable npm installs. |
 | `frontend/next.config.ts` | Rewrite from browser `/api/copilot/*` requests to the local FastAPI `/api/*` routes. |
@@ -117,7 +117,7 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Swagger UI is at `http://127.0.0.1:8000/docs`; it documents the REST endpoints and points to the MCP interface overview. The raw OpenAPI schema is at `http://127.0.0.1:8000/openapi.json`, backend capabilities are at `http://127.0.0.1:8000/api/capabilities`, the health check is at `http://127.0.0.1:8000/api/health`, and the MCP Streamable HTTP endpoint is `http://127.0.0.1:8000/mcp`. MCP messages use the MCP protocol, so the MCP tool list is described in the overview rather than represented as OpenAPI routes.
+Swagger UI is at `http://127.0.0.1:8000/docs`; it documents the REST endpoints including `PATCH /api/vehicles/{serial}/mileage` (the only local synthetic-data write route) and points to the read-only MCP interface overview. The raw OpenAPI schema is at `http://127.0.0.1:8000/openapi.json`, backend capabilities are at `http://127.0.0.1:8000/api/capabilities`, the health check is at `http://127.0.0.1:8000/api/health`, and the MCP Streamable HTTP endpoint is `http://127.0.0.1:8000/mcp`. MCP messages use the MCP protocol, so the MCP tool list is described in the overview rather than represented as OpenAPI routes.
 
 ### Terminal 2: Next.js web app
 
@@ -133,7 +133,7 @@ Open `http://localhost:3000`. The Next.js rewrite proxies `/api/copilot/*` calls
 
 Start the Ollama app and confirm its local API is available at `http://127.0.0.1:11434`. Run `ollama list` to see installed models, then open **Ask Copilot** and select one of them. The model storage folder (including a D: drive folder) is handled by your local Ollama installation; the app lists models available from that instance. If Ollama is stopped or has no models, vehicle lookup and the rest of the app remain available, while chat shows a setup message. The selected model must support tool calling for record lookups and MCP actions.
 
-Chat and tool results are sent only to the local Ollama service. The assistant uses every tool and resource registered by the app's MCP server. It can inspect synthetic records and return drafts, but it cannot send messages, update records, book service, access a vehicle, or use an external model/service.
+Chat and tool results are sent only to the local Ollama service. The assistant uses every tool and resource registered by the app's MCP server. The assistant itself cannot send messages, update records, book service, access a vehicle, or use an external model/service; advisors update synthetic mileage separately through the REST form.
 
 ## Connect an MCP-compatible agent harness
 
@@ -156,9 +156,9 @@ The exact configuration-file format differs by harness. Replace `<project>` with
 - `dataset_summary` — report the demo data boundary and record count.
 - `service-lane://demo-guide` and `vehicle://{serial}` — read-only resources.
 
-All tools are read-only. Draft tools return `sent: false` and do not contact a customer, dealership, vehicle, or external service. The MCP endpoint binds to localhost with the dev server. Do not expose it to a network or public hostname without adding authentication and deployment security controls.
+All MCP tools are read-only. Draft tools return `sent: false` and do not contact a customer, dealership, vehicle, or external service. The MCP endpoint binds to localhost with the dev server. Do not expose it to a network or public hostname without adding authentication and deployment security controls.
 
-Direct runtime versions are pinned in `frontend/package.json` and `backend/requirements.txt`. The frontend requires Node.js 20.9 or newer.
+Run backend regression checks from `backend/` with `python -m unittest discover -s tests -v`. The local mileage update is the only REST operation that changes the synthetic JSON dataset.\n\nDirect runtime versions are pinned in `frontend/package.json` and `backend/requirements.txt`. The frontend requires Node.js 20.9 or newer.
 
 ## Sample serial numbers
 
