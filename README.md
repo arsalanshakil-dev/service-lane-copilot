@@ -45,6 +45,8 @@ service-lane-copilot/
 ├── backend/
 │   ├── requirements.txt              # Pinned Python dependencies
 │   ├── mcp_stdio.py                  # Local stdio MCP launcher
+│   ├── tests/
+│   │   └── test_mileage.py           # Mileage replacement and API regression checks
 │   └── app/
 │       ├── main.py                   # REST, local chat, mileage, and HTTP MCP routes
 │       ├── local_agent.py            # Local Ollama and MCP tool orchestration
