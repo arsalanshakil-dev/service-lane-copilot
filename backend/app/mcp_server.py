@@ -12,6 +12,7 @@ mcp_server = MCPServer(
     version="0.1.0",
     instructions=(
         "This server exposes synthetic demo vehicle records only. Treat maintenance rules as fictional examples. "
+        "Vehicle telemetry is deterministic simulated POC data, never live OBD-II. Do not use it as mileage, service-history, diagnostic, or recommendation evidence. "
         "Show the evidence and data limitations. Safety-related entries require advisor verification. "
         "All draft tools are read-only and never send, submit, book, or update records."
     ),
@@ -36,7 +37,7 @@ def search_vehicle_records(query: str = "", limit: int = 20) -> dict[str, Any]:
 
 @mcp_server.tool()
 def get_vehicle_record(serial: str) -> dict[str, Any]:
-    """Retrieve one synthetic vehicle record, service history, and recorded demo recommendations."""
+    """Retrieve one synthetic vehicle record, simulated-only telemetry, service history, and recorded demo recommendations. Telemetry is not live and is not recommendation evidence."""
     vehicle = find_vehicle(serial)
     if vehicle is None:
         return {
@@ -159,7 +160,7 @@ def demo_guide() -> str:
     """Describe the dataset boundaries and recommendation safety rules."""
     return (
         "Service Lane Copilot MCP demo guide. All 250 vehicle records and recommendation rules are synthetic. "
-        "Use get_vehicle_record to inspect evidence. Unknown, missing, stale, or conflicting data must remain uncertain. "
+        "Vehicle telemetry fields are simulated POC samples only, not live OBD-II readings and not service or recommendation evidence. Use get_vehicle_record to inspect dealership-history evidence. Unknown, missing, stale, or conflicting data must remain uncertain. "
         "Safety-related items are verification prompts, not diagnoses. Service history is synthetic and is not retrieved "
         "from OBD-II/CAN. Draft tools never send messages or change records."
     )
@@ -193,6 +194,7 @@ def dataset_summary() -> dict[str, Any]:
         "source": "data/vehicles.json",
         "live_vehicle_access": False,
         "live_dealership_access": False,
+        "simulated_obd_telemetry_available": True,
     }
 
 
