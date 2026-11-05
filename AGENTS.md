@@ -34,7 +34,7 @@ If the issue tracker, Git repository, remote, or pull request service is unavail
 
 For every project change on its ticket branch:
 
-1. Turn the request into specific acceptance criteria before editing. Use `docs/feature-spec-template.md` for a distinct feature; update the main spec for changes to existing behavior.
+1. Turn the request into specific acceptance criteria before editing. Use `docs/spec/feature-spec-template.md` for a distinct feature and save the new spec as `docs/spec/feature-spec-<name>.md` (all feature specs live in `docs/spec/`; other material stays in `docs/`); update the main spec for changes to existing behavior.
 2. List the smallest implementation tasks and files likely to change. Keep one task focused per session.
 3. Implement only specified behavior. Avoid unrelated refactors, speculative integrations, unrequested dependencies, and hidden external actions.
 4. Add or update automated checks for changed behavior. At minimum, backend data/API/MCP changes need checks for known and unknown records, data limitations, correct evidence, and no side effects. Frontend changes need type/build checks and relevant interaction checks.

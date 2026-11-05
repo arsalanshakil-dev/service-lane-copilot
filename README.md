@@ -67,15 +67,19 @@ service-lane-copilot/
 │   ├── config.toml                   # Local Supabase project configuration
 │   └── migrations/                   # Postgres schema, RLS, and grants (vehicle_records, service_rules)
 ├── docs/
-│   ├── feature-spec-template.md      # Template for a new feature spec
-│   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits
-│   ├── feature-spec-record-service.md # Recording completed services and status updates
-│   ├── feature-spec-edit-vehicle-records.md # Adding vehicles and editing records with a change log
-│   ├── feature-spec-mcp-write-tools.md # MCP write tools and advisor-confirmed chat changes
-│   ├── feature-spec-editable-rules.md # Editable maintenance rules and computed recommendations
-│   ├── feature-spec-local-ai-assist.md # Local AI drafts and AI-suggested service items
-│   ├── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
-│   └── feature-spec-supabase-database.md # Supabase runtime store and seed behavior
+│   ├── spec/                         # Feature specs (one file per feature) and the template
+│   │   ├── feature-spec-template.md          # Template for a new feature spec
+│   │   ├── feature-spec-manual-mileage.md    # Mileage replacement scope and evidence limits
+│   │   ├── feature-spec-record-service.md    # Recording completed services and status updates
+│   │   ├── feature-spec-edit-vehicle-records.md # Adding vehicles and editing records with a change log
+│   │   ├── feature-spec-mcp-write-tools.md   # MCP write tools and advisor-confirmed chat changes
+│   │   ├── feature-spec-editable-rules.md    # Editable maintenance rules and computed recommendations
+│   │   ├── feature-spec-local-ai-assist.md   # Local AI drafts and AI-suggested service items
+│   │   ├── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
+│   │   ├── feature-spec-simulated-obd-telemetry.md # Simulated OBD-II telemetry scope and limits
+│   │   └── feature-spec-supabase-database.md # Supabase runtime store and seed behavior
+│   ├── links.txt                     # Project reference links
+│   └── (PDF and slide decks)         # Supporting project material
 ├── backend/
 │   ├── .env.example                  # Backend-only Supabase environment template
 │   ├── requirements.txt              # Pinned Python dependencies
@@ -129,18 +133,19 @@ The tree shows the main source files and intentionally omits generated folders s
 | `CONTEXT.md` | Short onboarding explanation of the project and links to the authoritative docs. |
 | `MEMORY.md` | Verified architecture, local run commands, current implementation status, and known gaps. |
 | `SERVICE_LANE_COPILOT_SPEC.md` | Product requirements, boundaries, acceptance criteria, and the verification plan. |
-| `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |
-| `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
-| `docs/feature-spec-editable-rules.md` | Editable maintenance rules, how recommendations are computed, rules API, and fallback. |
-| `docs/feature-spec-mcp-write-tools.md` | MCP write tools, chat proposals with Apply/Discard, and the no-history-delete rule. |
-| `docs/feature-spec-edit-vehicle-records.md` | Adding vehicles and editing details, history, and recommendations; 404/409/422 rules and the change log. |
-| `docs/feature-spec-record-service.md` | Recording a completed service: history event, Completed status on a stored recommendation, odometer update, and limits. |
+| `docs/spec/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |
+| `docs/spec/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
+| `docs/spec/feature-spec-editable-rules.md` | Editable maintenance rules, how recommendations are computed, rules API, and fallback. |
+| `docs/spec/feature-spec-mcp-write-tools.md` | MCP write tools, chat proposals with Apply/Discard, and the no-history-delete rule. |
+| `docs/spec/feature-spec-edit-vehicle-records.md` | Adding vehicles and editing details, history, and recommendations; 404/409/422 rules and the change log. |
+| `docs/spec/feature-spec-record-service.md` | Recording a completed service: history event, Completed status on a stored recommendation, odometer update, and limits. |
 | `README.md` | Setup instructions, architecture diagram, folder tree, file guide, endpoints, and sample serial numbers. |
 | `data/vehicles.json` | The 1,000 fictional seed records; loaded into Supabase by the seed command and never read at runtime. |
 | `backend/generate_synthetic_vehicles.py` | Repeatable generator (fixed seed) for fictional records DEMO-0251…DEMO-1000; leaves the original 250 unchanged. |
 | `supabase/config.toml` and `supabase/migrations/` | Local Supabase configuration and private vehicle table schema with row-level security. |
-| `docs/feature-spec-local-ai-assist.md` | Local AI customer drafts and AI-suggested service items, with grounding and validation guardrails. |
-| `docs/feature-spec-supabase-database.md` | Approved Supabase runtime, credentials, seed, and failure behavior. |
+| `docs/spec/feature-spec-local-ai-assist.md` | Local AI customer drafts and AI-suggested service items, with grounding and validation guardrails. |
+| `docs/spec/feature-spec-simulated-obd-telemetry.md` | Simulated OBD-II telemetry streams, labelling, and the rule that they are never recommendation evidence. |
+| `docs/spec/feature-spec-supabase-database.md` | Approved Supabase runtime, credentials, seed, and failure behavior. |
 | `backend/seed_supabase.py` | Idempotently loads the synthetic JSON fixture into `public.vehicle_records`. |
 | `backend/app/data_store.py` | Supabase runtime reads and advisor mileage updates. |
 | `backend/requirements.txt` | Pinned Python packages for FastAPI, Uvicorn, MCP, Supabase, and environment loading. |
@@ -179,7 +184,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/app/globals.css` | App-wide styles. |
 | `frontend/tsconfig.json` | TypeScript compiler configuration used by Next.js. |
 | `frontend/next-env.d.ts` | Next.js generated TypeScript environment declarations. |
-| `docs/feature-spec-template.md` | Template for specifying a distinct feature before implementation. |
+| `docs/spec/feature-spec-template.md` | Template for specifying a distinct feature before implementation. |
 | `docs/links.txt` | Project reference links. |
 | `docs/AI_Agent_Project_Guide_Local_and_Free_Models.pdf` | Supporting project reference material. |
 | `docs/Day 1 - Part 2 (To deliver) - AI in 2026.pptx` | Slides that introduced the project idea. |

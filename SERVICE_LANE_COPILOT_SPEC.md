@@ -93,7 +93,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Configure `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in the ignored `backend/.env`. The same config supports hosted Supabase or the local Supabase stack. Never place the key in frontend code or Git.
 - Missing configuration, network errors, or migration errors produce a clear unavailable response. The backend never falls back to JSON at runtime.
 - The local API and MCP endpoint remain bound to localhost. Hosted-project provisioning, secret entry, and migration execution against a hosted project require an explicit separate action.
-- See `docs/feature-spec-supabase-database.md`.
+- See `docs/spec/feature-spec-supabase-database.md`.
 
 ### Manual mileage updates
 
@@ -101,7 +101,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Record the reading date and source (`advisor_observed` or `customer_reported`); the replacement supersedes the current mileage and does not retain the previous value.
 - A reading below recorded service mileage is marked conflicting. Missing, stale, or incomplete service history keeps recommendations paused; mileage entry alone never creates a recommendation or interval.
 - This write is available through the local REST endpoint and the MCP `update_vehicle_mileage` tool (issue #44); both validate and log it.
-- See `docs/feature-spec-manual-mileage.md`.
+- See `docs/spec/feature-spec-manual-mileage.md`.
 
 ### Recommendations
 
@@ -118,7 +118,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Filter embedding-only Ollama models from the chat selector; default to an installed chat-capable model so an embedding model is not sent to `/api/chat`.
 - **Settings (issue #40):** a Settings view (`#settings`, sidebar and mobile switch) has one **AI model** dropdown of installed local chat models (embedding-only models hidden) with a refresh action and Ollama status. The choice is saved in this browser (localStorage `service-lane-ai-model`) and used by Ask Copilot, AI drafts, AI suggestions, and record summaries; it falls back to the first installed chat model. No other model selector appears in the app; each AI feature shows the model in use with a link to Settings.
 - **Settings: appearance and time zone (issue #46):** Settings also offers **Appearance** (Light, Dark, System; System follows the operating system and updates live; applied before first paint). The top-bar Theme button was removed at the user's request; theme is set only in Settings and **Time zone** (browser default or any IANA zone) used for times of day — change-log entries and simulated telemetry sample times. Calendar dates such as service-history and mileage dates are unchanged. Both are saved in this browser. Editable maintenance rules are a separate feature (issue #47). On desktop, a ☰ button in the top bar hides or shows the sidebar (remembered in this browser); small screens always hide it and use the Lane/Records/⚙ switch.
-- **Maintenance rules (issue #47):** editable demo rules stored in `public.service_rules` (all users) drive recommendations: for each enabled rule, the vehicle's newest matching history entry and current mileage give Due / Coming up (safety rules → Advisor verification); no matching entry → no claim; incomplete or conflicting records stay paused. Shown recommendations = rule items (most urgent first) + stored Advisor-entered items; legacy stored items are ignored while rules are available. Settings → Maintenance rules adds, edits, and disables rules (no delete) with a per-rule change log; duplicates and stale edits return 409. If the rules table is missing, stored recommendations are shown with a "rules not set up" notice. See `docs/feature-spec-editable-rules.md`.
+- **Maintenance rules (issue #47):** editable demo rules stored in `public.service_rules` (all users) drive recommendations: for each enabled rule, the vehicle's newest matching history entry and current mileage give Due / Coming up (safety rules → Advisor verification); no matching entry → no claim; incomplete or conflicting records stay paused. Shown recommendations = rule items (most urgent first) + stored Advisor-entered items; legacy stored items are ignored while rules are available. Settings → Maintenance rules adds, edits, and disables rules (no delete) with a per-rule change log; duplicates and stale edits return 409. If the rules table is missing, stored recommendations are shown with a "rules not set up" notice. See `docs/spec/feature-spec-editable-rules.md`.
 - Allow up to 600 seconds per local Ollama HTTP request by default, configurable with backend-only `OLLAMA_TIMEOUT_SECONDS` (30–1800 seconds). This limit applies per request in a multi-step MCP turn.
 - Send `think: false` on local chat requests so thinking-capable models do not spend the request timeout on hidden reasoning.
 - Return HTTP 503 when local Ollama cannot be reached and HTTP 504 with a timeout message when a running model exceeds the request timeout. Chat failures must never surface as a generic HTTP 500.
@@ -127,7 +127,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Vehicle facts, recommendation evidence, and safety status must be grounded in MCP tool/resource output. Incomplete or conflicting data remains uncertain. The model cannot decide maintenance intervals.
 - Conversation history is kept in browser memory only.
 - **Topic guardrail:** the chat answers dealership service-lane questions only (vehicle lookup, service history, mileage, stored recommendations and evidence, drafts, the synthetic dataset, and how the app works). General Q&A (general knowledge, coding, math, news, weather, personal advice, unrelated writing, or prompt-override requests) receives a fixed refusal explaining what the assistant can help with; the model's own off-topic text is never shown.
-- See `docs/feature-spec-local-ollama-chat.md`.
+- See `docs/spec/feature-spec-local-ollama-chat.md`.
 
 ### Local AI drafts and AI-suggested service items
 
@@ -136,27 +136,27 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Each AI suggestion must cite recorded service-history entries; the backend builds its evidence from those entries and drops suggestions with invalid citations, prices, or duplicates of stored recommendations. Safety-related suggestions are verification prompts only.
 - **Mileage-based AI suggestions (issue #30):** the prompt includes current mileage and miles since each recorded service. The model may give its own estimate of a typical interval in miles; it is shown as "Model estimate … Unverified; check the manufacturer schedule." (approved AGENTS.md exception). The backend drops a suggestion that matches a recorded service done fewer miles ago than the model's interval or the 1,000 mi demo floor, or within 30 days when that service's odometer was not recorded. An item never recorded is dropped until the vehicle reaches the model's interval estimate. A service recorded 10 miles ago is never suggested again.
 - Records with missing mileage, incomplete or conflicting data, or no history return no AI suggestions and a limitation.
-- See `docs/feature-spec-local-ai-assist.md`.
+- See `docs/spec/feature-spec-local-ai-assist.md`.
 
 ### Recording completed services
 
 - When a service is done, the advisor records it with **✓ Mark as done** on a stored recommendation or **+ Record service** in Service history (service name, date not in the future, optional odometer, optional note).
 - `POST /api/vehicles/{serial}/services` saves it to the Supabase record: a newest-first history event marked `advisor_recorded`, the matching recommendation set to **Completed** with completion evidence, and current mileage raised only when the service odometer is higher.
 - No next-due interval is calculated. Unknown serial → 404; invalid input or an unknown recommendation → 422 with no write. Also available as the MCP `record_completed_service` tool (issue #44).
-- See `docs/feature-spec-record-service.md`.
+- See `docs/spec/feature-spec-record-service.md`.
 
 ### Adding vehicles and editing records (issue #42)
 
 - Advisors can add a vehicle (serial, make, model, year, optional mileage), edit vehicle details including a serial rename, edit individual history entries (history can never be deleted, user decision 2026-11-06), and add, edit, or remove recommendations. Advisor-written recommendations are labelled "Advisor-entered" (approved exception in AGENTS.md).
 - Index-based edits name the expected entry; a stale request returns 409 without writing. Duplicate serials return 409; invalid input returns 422; unknown serials return 404.
 - Every REST write, including mileage and completed services, appends a change-log entry to the record (latest 100 kept), shown under Record details.
-- See `docs/feature-spec-edit-vehicle-records.md`.
+- See `docs/spec/feature-spec-edit-vehicle-records.md`.
 
 ### MCP write tools and chat confirmation (issue #44)
 
 - MCP write tools: add_vehicle, update_vehicle_details, update_vehicle_mileage, record_completed_service, edit_history_entry, add_recommendation, update_recommendation, remove_recommendation. Same validation and change log as REST (actor "MCP agent"); errors return `saved: false` without writing.
 - In the in-app chat a write request becomes a confirm card; nothing is saved until the advisor clicks **Apply change** (single use, 15-minute expiry; actor "advisor via chat (confirmed)"). **Discard** drops it.
-- MCP stays on localhost; draft tools never send. See `docs/feature-spec-mcp-write-tools.md`.
+- MCP stays on localhost; draft tools never send. See `docs/spec/feature-spec-mcp-write-tools.md`.
 
 ### Drafts and approvals
 
@@ -211,7 +211,7 @@ Review the code changes and evidence for each check before accepting them. A che
 Every implementation change must follow this order:
 
 1. Read `AGENTS.md`, `MEMORY.md`, and this spec. Inspect the current code and relevant data contracts before editing.
-2. Write or update the requirement first. For changes to current behavior, update this spec; for a distinct feature, create a feature spec from `docs/feature-spec-template.md` and link it here.
+2. Write or update the requirement first. For changes to current behavior, update this spec; for a distinct feature, create a feature spec from `docs/spec/feature-spec-template.md` and link it here.
 3. State the user/problem, in-scope and out-of-scope behavior, data sources, failure cases, safety boundaries, and observable acceptance criteria. Turn acceptance criteria into repeatable tests or a named manual review where automation is not practical.
 4. Break the approved requirement into small tasks and implement one task at a time. Do not add unrequested behavior, new data sources, dependencies, or side effects.
 5. Run the checks named by the spec, inspect the full diff, and update `MEMORY.md` with verified changes and remaining gaps.
@@ -267,10 +267,10 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - `AGENTS.md` defines the required spec-first process and safety rules for coding agents.
 - `.github/workflows/verify.yml` runs the backend regression suite and frontend production build for pull requests and main pushes.
 - `MEMORY.md` records verified implementation facts and current gaps; it does not override this spec.
-- `docs/feature-spec-template.md` is the template for distinct features.
-- `docs/feature-spec-local-ollama-chat.md` defines the in-app assistant, local-only Ollama boundary, and full MCP capability access.
-- `docs/feature-spec-manual-mileage.md` defines advisor mileage replacement, provenance, and evidence limits.
-- `docs/feature-spec-supabase-database.md` defines the runtime Supabase store, local/hosted configuration, seed path, and security boundaries.
+- `docs/spec/feature-spec-template.md` is the template for distinct features.
+- `docs/spec/feature-spec-local-ollama-chat.md` defines the in-app assistant, local-only Ollama boundary, and full MCP capability access.
+- `docs/spec/feature-spec-manual-mileage.md` defines advisor mileage replacement, provenance, and evidence limits.
+- `docs/spec/feature-spec-supabase-database.md` defines the runtime Supabase store, local/hosted configuration, seed path, and security boundaries.
 - `frontend/app/` contains the Next.js page and styles.
 - `frontend/app/icon.svg` is the browser-tab favicon.
 - `frontend/next.config.ts` proxies browser API calls to FastAPI.

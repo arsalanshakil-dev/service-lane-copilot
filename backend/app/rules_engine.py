@@ -4,7 +4,7 @@ Rules live in `public.service_rules`. Recommendations are computed on every read
 record's history and current mileage, then combined with stored Advisor-entered items.
 If the rules table is missing or unreadable the stored recommendations are shown as before
 with `rulesStatus: "unavailable"`; there is no other fallback.
-See docs/feature-spec-editable-rules.md.
+See docs/spec/feature-spec-editable-rules.md.
 """
 
 from __future__ import annotations
