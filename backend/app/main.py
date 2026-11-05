@@ -31,9 +31,9 @@ app = FastAPI(
     title="Service Lane Copilot API",
     version="0.1.0",
     description=(
-        "Read-only REST API over the 250-record synthetic vehicle dataset.\n\n"
+        "REST API over the 250-record synthetic vehicle dataset. Search and retrieval are read-only; one local route allows an advisor to update missing mileage.\n\n"
         "## REST API\n"
-        "Use the vehicle routes to search and retrieve synthetic vehicle records. "
+        "Search and retrieve synthetic vehicle records, or enter missing mileage for a known synthetic vehicle. "
         "Unknown serials return 404; no real dealership data is queried.\n\n"
         "## MCP agent access\n"
         "The same dataset is available to MCP-compatible agents over Streamable HTTP at `/mcp` "
