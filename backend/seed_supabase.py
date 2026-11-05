@@ -70,8 +70,11 @@ def main() -> int:
     try:
         rows = build_seed_rows()
         seeded = seed_vehicles(supabase_client(), rows)
-    except Exception as exc:
-        print(f"Supabase seed failed: {exc}", file=sys.stderr)
+    except Exception:
+        print(
+            "Supabase seed failed. Check backend/.env, database availability, and that migrations are applied.",
+            file=sys.stderr,
+        )
         return 1
     print(f"Seeded {seeded} synthetic vehicle records into Supabase.")
     return 0
