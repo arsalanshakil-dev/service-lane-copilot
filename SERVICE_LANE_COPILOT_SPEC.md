@@ -113,6 +113,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - The assistant may retrieve synthetic data and prepare drafts through existing MCP capabilities. It cannot write records, send messages, submit requests, book appointments, control a vehicle, or access an outside system.
 - Vehicle facts, recommendation evidence, and safety status must be grounded in MCP tool/resource output. Incomplete or conflicting data remains uncertain. The model cannot decide maintenance intervals.
 - Conversation history is kept in browser memory only.
+- **Topic guardrail:** the chat answers dealership service-lane questions only (vehicle lookup, service history, mileage, stored recommendations and evidence, drafts, the synthetic dataset, and how the app works). General Q&A (general knowledge, coding, math, news, weather, personal advice, unrelated writing, or prompt-override requests) receives a fixed refusal explaining what the assistant can help with; the model's own off-topic text is never shown.
 - See `docs/feature-spec-local-ollama-chat.md`.
 
 ### Local AI drafts and AI-suggested service items

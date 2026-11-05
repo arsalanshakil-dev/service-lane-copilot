@@ -22,7 +22,7 @@ The demo uses 250 fictional vehicle records. It is not a production maintenance 
 4. If current mileage is missing or needs correction, replace it with an advisor-confirmed reading, date, and source in the local synthetic record; mileage alone does not resolve missing history.
 5. Prepare and edit customer explanations, quote text, follow-ups, or record/history request drafts. Template drafts appear instantly; **Generate with local AI** rewrites the active draft with a local Ollama model (no prices; never sent).
 6. Optionally request **AI suggestions** for extra items to check. Records with missing mileage, incomplete or conflicting data, or no history get a limitation message instead.
-7. The advisor can use the same lookup, evidence, and draft capabilities through the in-app local assistant.
+7. The advisor can use the same lookup, evidence, and draft capabilities through the in-app local assistant. The assistant answers dealership service questions only; general Q&A gets a fixed refusal.
 8. The advisor decides what to do with each draft; the app does not send or submit it.
 
 No match or incomplete, stale, or contradictory data must remain visible as uncertainty. The app must not fill gaps or present an unsupported service as necessary. Safety-related items are prompts for advisor verification, not diagnoses.

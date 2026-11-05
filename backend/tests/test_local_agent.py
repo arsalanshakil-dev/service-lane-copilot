@@ -108,6 +108,61 @@ class LocalAgentLoopTests(unittest.TestCase):
         self.assertTrue(tool_result["synthetic_data"])
         self.assertEqual(result["tools_used"], ["dataset_summary"])
         self.assertEqual(result["reply"], "There are 2 synthetic records.")
+        self.assertIs(result["out_of_scope"], False)
+
+
+class TopicGuardrailTests(unittest.TestCase):
+    """Issue #24: the chat answers dealership service questions only."""
+
+    def chat_with_replies(self, *replies: dict[str, Any], message: str = "question") -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        payloads: list[dict[str, Any]] = []
+
+        def fake_ollama(path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+            payloads.append(json.loads(json.dumps(payload)))
+            return replies[len(payloads) - 1]
+
+        with (
+            patch.object(local_agent, "list_local_models", return_value=[MODEL]),
+            patch.object(local_agent, "_ollama_request", side_effect=fake_ollama),
+            patch("app.mcp_server.load_vehicles", return_value=FAKE_VEHICLES),
+        ):
+            result = run(chat_with_local_agent(MODEL, message, []))
+        return result, payloads
+
+    def test_system_prompt_states_scope_and_out_of_scope_marker(self) -> None:
+        _, payloads = self.chat_with_replies({"message": {"role": "assistant", "content": "OUT_OF_SCOPE"}})
+        system = payloads[0]["messages"][0]
+        self.assertEqual(system["role"], "system")
+        self.assertIn("dealership service-lane topics", system["content"])
+        self.assertIn("general knowledge", system["content"])
+        self.assertIn(local_agent.OUT_OF_SCOPE_MARKER, system["content"])
+
+    def test_out_of_scope_marker_returns_fixed_refusal(self) -> None:
+        result, _ = self.chat_with_replies(
+            {"message": {"role": "assistant", "content": "OUT_OF_SCOPE"}}, message="What is the capital of France?"
+        )
+        self.assertEqual(result["reply"], local_agent.OUT_OF_SCOPE_REPLY)
+        self.assertIs(result["out_of_scope"], True)
+        self.assertEqual(result["tools_used"], [])
+
+    def test_model_off_topic_text_is_never_shown(self) -> None:
+        result, _ = self.chat_with_replies(
+            {"message": {"role": "assistant", "content": "Paris is the capital of France."}},
+            message="What is the capital of France?",
+        )
+        self.assertNotIn("Paris", result["reply"])
+        self.assertTrue(result["reply"].startswith(local_agent.OUT_OF_SCOPE_REPLY))
+        self.assertEqual(result["tools_used"], [])
+
+    def test_marker_after_tool_use_still_refuses(self) -> None:
+        result, _ = self.chat_with_replies(
+            {"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "dataset_summary", "arguments": {}}}
+            ]}},
+            {"message": {"role": "assistant", "content": "out_of_scope"}},
+        )
+        self.assertEqual(result["reply"], local_agent.OUT_OF_SCOPE_REPLY)
+        self.assertIs(result["out_of_scope"], True)
 
     def test_uninstalled_model_is_rejected_before_any_chat_request(self) -> None:
         with (
