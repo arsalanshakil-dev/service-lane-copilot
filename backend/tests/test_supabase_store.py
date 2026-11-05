@@ -9,6 +9,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app import data_store
+from app.main import get_vehicle
+from fastapi import HTTPException
 from seed_supabase import build_seed_rows, seed_vehicles
 
 
@@ -122,6 +124,12 @@ class SupabaseVehicleStoreTests(unittest.TestCase):
         self.assertEqual(data_store.find_vehicle(" test-001 "), self.record)
         self.assertIsNone(data_store.find_vehicle("UNKNOWN"))
 
+    def test_rest_vehicle_lookup_reads_supabase_and_unknown_is_404(self) -> None:
+        self.assertEqual(get_vehicle("TEST-001"), self.record)
+        with self.assertRaises(HTTPException) as raised:
+            get_vehicle("UNKNOWN")
+        self.assertEqual(raised.exception.status_code, 404)
+
     def test_search_reads_current_records_and_returns_summaries(self) -> None:
         results = data_store.search_vehicle_summaries("toyota", limit=5)
         self.assertEqual(len(results), 1)
@@ -129,6 +137,7 @@ class SupabaseVehicleStoreTests(unittest.TestCase):
         self.assertNotIn("history", results[0])
 
     def test_mileage_update_persists_and_preserves_other_record_fields(self) -> None:
+        previous_timestamp = self.client.rows["TEST-001"]["updated_at"]
         updated = data_store.update_vehicle_mileage(
             "TEST-001", 24_000, "2026-11-05", "advisor_observed"
         )
@@ -140,7 +149,7 @@ class SupabaseVehicleStoreTests(unittest.TestCase):
         self.assertEqual(saved["history"], self.record["history"])
         self.assertEqual(saved["recs"], self.record["recs"])
         self.assertEqual(saved["obdTelemetry"], self.record["obdTelemetry"])
-        self.assertEqual(self.client.rows["TEST-001"]["updated_at"], updated["updated_at"] if "updated_at" in updated else self.client.rows["TEST-001"]["updated_at"])
+        self.assertNotEqual(self.client.rows["TEST-001"]["updated_at"], previous_timestamp)
 
     def test_mileage_below_history_is_marked_conflicting_without_replacing_evidence(self) -> None:
         updated = data_store.update_vehicle_mileage(
