@@ -1,6 +1,6 @@
 # Project memory
 
-Last updated: 2026-11-04
+Last updated: 2026-11-05
 
 This file is a continuity summary, not a requirements document. Product requirements live in `SERVICE_LANE_COPILOT_SPEC.md`; development rules live in `AGENTS.md`.
 
@@ -15,7 +15,7 @@ This file is a continuity summary, not a requirements document. Product requirem
 
 ## Architecture facts
 
-- REST endpoints: `GET /api/health`, `GET /api/vehicles`, and `GET /api/vehicles/{serial}`.
+- REST endpoints: `GET /api/health`, `GET /api/vehicles`, `GET /api/vehicles/{serial}`, `GET /api/chat/models`, and `POST /api/chat`.
 - Swagger UI: `/docs`; OpenAPI JSON: `/openapi.json`; REST/MCP interface summary: `/api/capabilities`.
 - MCP Streamable HTTP endpoint: `http://127.0.0.1:8000/mcp`, mounted in `backend/app/main.py`.
 - MCP stdio launcher: `backend/mcp_stdio.py`.
@@ -52,7 +52,7 @@ Open `http://localhost:3000`. For stdio MCP hosts, launch `<backend>/.venv/Scrip
 ## Verified state and known gaps
 
 - Stack files and setup instructions are present, but the Next.js/FastAPI/MCP runtime has not been launched in this workspace.
-- The Python interpreter is not available in the current project shell; npm also has not been successfully used here. Treat runtime behavior and build status as unverified until checks run in a configured environment.
+- No backend, frontend, or Ollama checks were run for the local chat change. Treat runtime behavior and model tool-calling support as unverified until checked with the local services.
 - The acceptance and verification plan is in `SERVICE_LANE_COPILOT_SPEC.md` and `docs/feature-spec-local-ollama-chat.md`. The local agent and chat have not been run in this environment; tool-calling behavior is unverified until exercised with an installed Ollama model.
 - Do not assume the MCP mount, tools, UI, or API are runtime-verified based on source inspection alone.
 - No live OBD-II/CAN integration, dealership history integration, authentication, hosted deployment, or real maintenance catalog exists.
