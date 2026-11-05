@@ -60,7 +60,7 @@ Updated: 2026-11-05
 ## Acceptance criteria
 
 1. All 250 records contain simulation metadata and exactly four documented streams, each with four timestamped numeric samples and the specified unit.
-2. Sample values are deterministic and timestamps form the documented fixed four-minute demo window.
+2. Sample values are deterministic and timestamps form the documented fixed sample window.
 3. Known vehicle REST and MCP retrieval exposes the simulation marker and streams; an unknown vehicle remains not found.
 4. The vehicle page shows a clear simulated warning, each stream’s unit/latest value/time, and a visual trend; missing telemetry has a clear unavailable state.
 5. Neither recommendations, mileage, nor service history are calculated or modified from telemetry.
