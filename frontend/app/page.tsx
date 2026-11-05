@@ -100,6 +100,7 @@ export default function Home() {
   const [manualMileageDate, setManualMileageDate] = useState("");
   const [manualMileageSource, setManualMileageSource] = useState<"advisor_observed" | "customer_reported">("advisor_observed");
   const [savingMileage, setSavingMileage] = useState(false);
+  const [manualMileageOpen, setManualMileageOpen] = useState(false);
 
   function notify(message: string) {
     setToast(message);
@@ -128,6 +129,7 @@ export default function Home() {
     setManualMileage("");
     setManualMileageDate("");
     setManualMileageSource("advisor_observed");
+    setManualMileageOpen(false);
     try {
       const response = await fetch(`/api/copilot/vehicles/${encodeURIComponent(normalized)}`, {
         headers: { Accept: "application/json" },
@@ -139,6 +141,7 @@ export default function Home() {
       } else {
         const data = (await response.json()) as Vehicle;
         setVehicle(data);
+        setManualMileageOpen(data.mileage == null);
         setActiveDraft("explanation");
         setDraftText(draftFor(data, "explanation"));
       }
@@ -178,6 +181,7 @@ export default function Home() {
       setDraftText(draftFor(updatedVehicle, activeDraft));
       setManualMileage("");
       setManualMileageDate("");
+      setManualMileageOpen(false);
       notify(data.conflicting ? "Mileage saved; history conflict needs review" : "Mileage saved to the synthetic record");
     } catch {
       notify("Could not save the mileage. Check that the backend is running.");
@@ -234,7 +238,8 @@ export default function Home() {
           <section className="vehicle-card">
             <div className="vehicle-top"><div className="vehicle-ident"><div className="car-badge">▰</div><div><h2>{vehicle.year} {vehicle.make} {vehicle.model}</h2><p>Serial number {vehicle.serial}</p></div></div><span className={`record-pill ${incomplete ? "incomplete" : ""}`}>{vehicle.completeness}</span></div>
             <div className="vehicle-meta"><div><div className="meta-label">CURRENT MILEAGE</div><div className="meta-value">{formatMiles(vehicle.mileage)}</div><div className="meta-sub">{vehicle.mileageDate}{vehicle.mileageSource ? ` · ${vehicle.mileageSource === "advisor_observed" ? "Advisor-observed" : "Customer-reported"}` : ""}</div></div><div><div className="meta-label">HISTORY EVENTS</div><div className="meta-value">{vehicle.history.length} recorded</div><div className="meta-sub">Synthetic dealer record</div></div><div><div className="meta-label">RECORD STATUS</div><div className="meta-value">{incomplete ? "Needs attention" : "Ready to review"}</div><div className="meta-sub">Synthetic dataset</div></div></div>
-            {vehicle.mileage == null && <section className="manual-mileage" aria-labelledby="manual-mileage-title"><div><h3 id="manual-mileage-title">Enter current mileage</h3><p>No odometer reading is available. Record a manual reading for this synthetic vehicle.</p></div><form className="manual-mileage-form" onSubmit={saveManualMileage}><label>Odometer miles<input type="number" min="0" step="1" inputMode="numeric" required value={manualMileage} onChange={(event) => setManualMileage(event.target.value)} placeholder="e.g. 48,120" /></label><label>Reading date<input type="date" required value={manualMileageDate} onChange={(event) => setManualMileageDate(event.target.value)} /></label><label>Reading source<select value={manualMileageSource} onChange={(event) => setManualMileageSource(event.target.value as "advisor_observed" | "customer_reported")}><option value="advisor_observed">Advisor-observed</option><option value="customer_reported">Customer-reported</option></select></label><button className="primary-button manual-mileage-submit" type="submit" disabled={savingMileage}>{savingMileage ? "Saving…" : "Save mileage"}</button></form><p className="manual-mileage-note">Saving replaces the current mileage field. Earlier mileage is not retained. Recommendations remain paused if service-history evidence is incomplete or conflicting.</p></section>}
+            {vehicle.mileage != null && <div className="manual-mileage-actions"><button className="copy-button" type="button" onClick={() => setManualMileageOpen((open) => !open)}>{manualMileageOpen ? "Cancel mileage update" : "Update mileage"}</button></div>}
+            {(vehicle.mileage == null || manualMileageOpen) && <section className="manual-mileage" aria-labelledby="manual-mileage-title"><div><h3 id="manual-mileage-title">{vehicle.mileage == null ? "Enter current mileage" : "Replace current mileage"}</h3><p>{vehicle.mileage == null ? "No odometer reading is available. Record a manual reading for this synthetic vehicle." : "Enter an advisor-confirmed reading to replace the current synthetic mileage. The previous value is not retained."}</p></div><form className="manual-mileage-form" onSubmit={saveManualMileage}><label>Odometer miles<input type="number" min="0" step="1" inputMode="numeric" required value={manualMileage} onChange={(event) => setManualMileage(event.target.value)} placeholder="e.g. 48,120" /></label><label>Reading date<input type="date" required value={manualMileageDate} onChange={(event) => setManualMileageDate(event.target.value)} /></label><label>Reading source<select value={manualMileageSource} onChange={(event) => setManualMileageSource(event.target.value as "advisor_observed" | "customer_reported")}><option value="advisor_observed">Advisor-observed</option><option value="customer_reported">Customer-reported</option></select></label><button className="primary-button manual-mileage-submit" type="submit" disabled={savingMileage}>{savingMileage ? "Saving…" : "Save mileage"}</button></form><p className="manual-mileage-note">Saving replaces the current mileage field. Earlier mileage is not retained. Recommendations remain paused if service-history evidence is incomplete or conflicting.</p></section>}
             {incomplete && <><div className="warning-banner"><b>!</b><span>{vehicle.conflicting ? "Mileage conflict: a recorded service mileage is higher than the current odometer reading. Reconcile the records before using service timing." : vehicle.mileage != null && vehicle.completeness === "History incomplete" ? "Current mileage is recorded, but service history is incomplete or missing event mileage. Recommendations remain paused until the advisor can verify supporting history; do not infer a due service." : vehicle.mileage != null ? "The mileage record is old, so service timing cannot be confirmed. Ask the customer for the current odometer reading and verify the record." : "Mileage is missing and service history is incomplete. Do not infer a due service from this record. Get a current odometer reading and request the missing history."}</span></div><div className="path-grid record-paths"><article className="path-card"><h3>Update dealership service record</h3><p>Prepare an intake draft to confirm vehicle details, mileage, and missing service history.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for advisor review. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</>}
             <div className="section-heading"><h3>{incomplete ? "Recommendations" : "Service recommendations"}</h3><span className="count-badge">{incomplete ? "Evidence needed" : `${vehicle.recs.length} items to review`}</span></div>
             {incomplete ? <div className="evidence">{vehicle.mileage == null ? "Recommendations are paused until a current mileage reading and relevant service history are verified." : "Manual mileage is saved, but service-history evidence is still incomplete. Recommendations remain paused until the advisor can verify it."}</div> : vehicle.recs.length ? vehicle.recs.map((rec, index) => <RecommendationCard key={`${rec.name}-${index}`} rec={rec} />) : <div className="evidence">No items match the configured demo rules. This does not replace review against an approved maintenance schedule.</div>}
