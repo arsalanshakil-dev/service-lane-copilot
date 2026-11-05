@@ -4,6 +4,7 @@
 // which validates them, guards against stale edits, and appends a change-log entry.
 
 import { FormEvent, useState } from "react";
+import { formatDateTime, useTimeZone } from "./display-prefs";
 
 export type EditableHistoryEvent = { date: string; name: string; detail: string; mileage: string; source?: string; edited?: boolean };
 export type EditableRecommendation = { name: string; status: string; kind: string; text: string; evidence: string; rule: string; safety?: boolean; source?: string };
@@ -305,6 +306,7 @@ export function useRecommendationEditor(vehicle: EditableVehicle | null, onSaved
 
 export function ChangeLog({ entries }: { entries?: ChangeLogEntry[] }) {
   const [showAll, setShowAll] = useState(false);
+  const { timeZone } = useTimeZone();
   const newestFirst = [...(entries ?? [])].reverse();
   const visible = showAll ? newestFirst : newestFirst.slice(0, 5);
   return (
@@ -313,7 +315,7 @@ export function ChangeLog({ entries }: { entries?: ChangeLogEntry[] }) {
       {newestFirst.length === 0 ? <p className="summary-muted">No changes have been saved for this vehicle yet.</p> : (
         <ol className="change-log-list">
           {visible.map((entry, index) => (
-            <li key={`${entry.at}-${index}`}><time dateTime={entry.at}>{new Date(entry.at).toLocaleString()}</time><span>{entry.summary}</span><small>{entry.actor}</small></li>
+            <li key={`${entry.at}-${index}`}><time dateTime={entry.at}>{formatDateTime(entry.at, timeZone)}</time><span>{entry.summary}</span><small>{entry.actor}</small></li>
           ))}
         </ol>
       )}

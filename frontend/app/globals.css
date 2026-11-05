@@ -297,3 +297,17 @@ html[data-theme="dark"] .copy-button.meta-action,html[data-theme="dark"] a.copy-
 .chat-text ul,.chat-text ol{margin:2px 0 6px;padding-left:18px}
 .chat-text li{margin:2px 0}
 .chat-text strong{font-weight:700}
+
+/* Settings: appearance and time zone (issue #46) */
+.settings-view .settings-panel+.settings-panel{margin-top:14px}
+.settings-radio{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);min-height:30px;cursor:pointer}
+.settings-radio input{width:16px;height:16px;accent-color:var(--green)}
+#settings-time-zone{min-width:280px}
+
+/* Hideable sidebar (desktop) */
+.sidebar-toggle{width:34px;height:34px;justify-content:center;padding:0;margin-right:12px;font-size:15px;display:inline-flex;align-items:center}
+.topbar{justify-content:flex-start}
+.topbar-right{margin-left:auto}
+.app-shell.sidebar-hidden .sidebar{display:none}
+.app-shell.sidebar-hidden .main-content{margin-left:0;max-width:none}
+@media(max-width:760px){.sidebar-toggle{display:none}}

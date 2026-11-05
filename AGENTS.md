@@ -43,7 +43,8 @@ For every project change on its ticket branch:
 7. Keep the project documents in step with every new requirement and every change, in the same branch and pull request:
    - When a new requirement or user decision is accepted, record it in `SERVICE_LANE_COPILOT_SPEC.md` and the relevant feature spec in `docs/` **before** implementing it.
    - After the change, update the spec and feature spec with the final behavior and acceptance criteria, `MEMORY.md` with verified decisions, implementation state, live-check results, and open gaps, and `CONTEXT.md` whenever the project overview, advisor workflow, boundaries, or document map changes.
-   - Do not record assumptions as facts. If a document needs no change, say so in the pull request.
+   - **Update `README.md` with every change, together with the spec, feature spec, `MEMORY.md`, `CONTEXT.md`, and `AGENTS.md`** (user rule, 2026-11-06): features and how to use them, setup and run steps, endpoints and MCP tools, the architecture diagram, folder tree, and key-file guide. Check the README against the implementation before opening the pull request.
+   - Do not record assumptions as facts. If a document (including the README) needs no change, say so explicitly in the pull request.
 8. Keep the architecture diagram, folder tree, and key-file guide in `README.md` current whenever a change adds, removes, or moves a component, source folder, or important project file. Update them in the same change and verify they match the implementation.
 
 ## Project safety rules
