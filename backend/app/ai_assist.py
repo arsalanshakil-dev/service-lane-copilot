@@ -2,7 +2,9 @@
 
 Both features make a single loopback Ollama call and never write records. AI suggestions
 are validated here so that every displayed item cites recorded service history, states no
-price or interval, and does not duplicate a stored demo recommendation.
+price, does not duplicate a stored demo recommendation, and is not repeated too soon after a
+recorded service. The model may give its own typical-interval estimate, which is shown as an
+unverified model estimate (approved AGENTS.md exception, issue #30).
 See docs/feature-spec-local-ai-assist.md.
 """
 
@@ -11,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from datetime import datetime
 from typing import Any, Literal
 
 from .local_agent import OllamaRequestError, _ollama_request, list_local_models
@@ -25,11 +28,17 @@ PRICE_PATTERN = re.compile(
     r"[$€£₹]|\b(?:usd|pkr|eur|gbp|dollars?|rupees?|euros?|pounds)\b|\brs\.?\s*\d",
     re.IGNORECASE,
 )
-INTERVAL_PATTERN = re.compile(
-    r"\b\d[\d,.]*\s*(?:k\b|mi\b|miles?\b|km\b|kms\b|kilomet\w*|months?\b|years?\b|weeks?\b|days?\b)"
-    r"|\bevery\s+(?:\d|other|few|several|month|year|week)",
-    re.IGNORECASE,
-)
+# Demo repeat guard (issue #30): never re-suggest a service recorded fewer miles ago than this,
+# whatever interval the model estimates; fall back to days when the odometer was not recorded.
+REPEAT_FLOOR_MILES = 1_000
+REPEAT_FLOOR_DAYS = 30
+MAX_INTERVAL_MILES = 200_000
+# Generic words ignored when matching a suggestion to a recorded service ("Wiper blade check" ~ "Wiper blades").
+GENERIC_SERVICE_WORDS = {
+    "and", "the", "of", "for", "check", "checks", "inspection", "inspect", "service", "services",
+    "replacement", "replace", "change", "condition", "verification", "verify", "test", "level",
+    "levels", "system", "routine", "new",
+}
 SAFETY_PATTERN = re.compile(
     r"brake|tire|tyre|steering|suspension|airbag|seat ?belt|recall|headlight|tail ?light|"
     r"\blights?\b|\blamps?\b|leak|wiper",
@@ -48,8 +57,9 @@ SUGGESTION_SCHEMA: dict[str, Any] = {
                     "reason": {"type": "string"},
                     "history_refs": {"type": "array", "items": {"type": "integer"}},
                     "safety_related": {"type": "boolean"},
+                    "typical_interval_miles": {"type": "integer"},
                 },
-                "required": ["name", "reason", "history_refs", "safety_related"],
+                "required": ["name", "reason", "history_refs", "safety_related", "typical_interval_miles"],
             },
         }
     },
@@ -66,6 +76,11 @@ def _mileage_text(vehicle: dict[str, Any]) -> str:
     return "not recorded" if mileage is None else f"{mileage:,} mi"
 
 
+def _event_miles(event: dict[str, Any]) -> int | None:
+    digits = re.sub(r"\D", "", str(event.get("mileage", "")))
+    return int(digits) if digits else None
+
+
 def _record_facts(vehicle: dict[str, Any]) -> str:
     """Plain-text record facts for the prompt. Telemetry is deliberately excluded."""
     lines = [
@@ -76,9 +91,16 @@ def _record_facts(vehicle: dict[str, Any]) -> str:
     ]
     history = vehicle.get("history") or []
     if history:
+        current = vehicle.get("mileage")
         for number, event in enumerate(history, start=1):
+            event_miles = _event_miles(event)
+            since = (
+                f" ({current - event_miles:,} mi ago)"
+                if isinstance(current, int) and event_miles is not None and current >= event_miles
+                else ""
+            )
             lines.append(
-                f"  {number}. {event.get('date')}: {event.get('name')} — {event.get('detail')} at {event.get('mileage')}"
+                f"  {number}. {event.get('date')}: {event.get('name')} — {event.get('detail')} at {event.get('mileage')}{since}"
             )
     else:
         lines.append("  (none recorded)")
@@ -165,15 +187,18 @@ async def generate_ai_draft(model: str, vehicle: dict[str, Any], draft_type: Dra
 
 
 SUGGESTION_SYSTEM_PROMPT = (
-    "You help a dealership service advisor decide what else to check during the visit, beyond the stored demo "
-    "recommendations. Suggest up to 3 items an advisor commonly checks (for example cabin or engine air filter, "
-    "battery test, wiper blades, fluid levels, or a related inspection) that are NOT stored recommendations "
-    "and are either absent from the numbered service history or related to a recorded service. In the reason, "
-    "explain what the history shows, such as 'no record of this item in the recorded visits'. In history_refs, "
-    "cite the numbers of the history entries your reason relies on (for an item with no record, cite the "
-    "recorded visits you reviewed). Never state prices, costs, or maintenance intervals (no distances or time "
-    "periods), and do not repeat mileage numbers; the cited entries are shown to the advisor automatically. "
-    "Never diagnose a fault; phrase safety-related items as something to verify. Respond only with JSON."
+    "You help a dealership service advisor decide what else to check during this visit, based on the "
+    "vehicle's current mileage and how many miles ago each service was last done. Using your general "
+    "maintenance knowledge, suggest up to 3 items commonly due at this mileage (for example cabin or engine "
+    "air filter, battery test, wiper blades, coolant, brake fluid, spark plugs, transmission fluid, or a "
+    "related inspection) that are NOT stored recommendations. Do not suggest an item that the history shows "
+    "was done recently compared with its typical interval. In typical_interval_miles give your estimate of "
+    "the usual interval in miles for that item (0 if it is not mileage-based); it is shown to the advisor as "
+    "an unverified estimate. In the reason, explain it from the mileage and history, for example 'no record "
+    "of this item; commonly checked by this mileage'. In history_refs cite the history entry numbers your "
+    "reason relies on (for an item never recorded, cite the recorded visits you reviewed). Never state "
+    "prices or costs. Never diagnose a fault; phrase safety-related items as something to verify. "
+    "Respond only with JSON."
 )
 
 
@@ -187,25 +212,6 @@ def _limitation(vehicle: dict[str, Any]) -> str | None:
     if vehicle.get("incomplete"):
         return "The record is incomplete. Verify mileage and service history before requesting AI suggestions."
     return None
-
-
-def _recorded_mileages(vehicle: dict[str, Any]) -> set[str]:
-    """Digit strings of mileages actually in the record (current reading and history)."""
-    values = {str(vehicle["mileage"])} if isinstance(vehicle.get("mileage"), int) else set()
-    for event in vehicle.get("history") or []:
-        digits = re.sub(r"\D", "", str(event.get("mileage", "")))
-        if digits:
-            values.add(digits)
-    return values
-
-
-def _without_recorded_mileages(text: str, recorded: set[str]) -> str:
-    """Remove citations of recorded readings so only model-stated intervals are checked."""
-
-    def replace(match: re.Match[str]) -> str:
-        return "" if re.sub(r"\D", "", match.group(1)) in recorded else match.group(0)
-
-    return re.sub(r"(\d[\d,]*)\s*(?:mi\b|miles?\b|km\b)", replace, text, flags=re.IGNORECASE)
 
 
 def _normalized(name: str) -> str:
@@ -222,15 +228,62 @@ def _is_duplicate(name: str, existing: list[str]) -> bool:
     )
 
 
-def validate_suggestions(raw: Any, vehicle: dict[str, Any], model: str) -> tuple[list[dict[str, Any]], int]:
-    """Keep only grounded, price-free, interval-free, non-duplicate suggestions."""
+def _service_keywords(name: str) -> set[str]:
+    words = {word.rstrip("s") if len(word) > 3 else word for word in _normalized(name).split()}
+    return {word for word in words if word and word not in GENERIC_SERVICE_WORDS}
+
+
+def _matches_service(suggestion_name: str, event_name: str) -> bool:
+    """True when a suggestion names the same service as a recorded history event."""
+    suggestion, event = _service_keywords(suggestion_name), _service_keywords(event_name)
+    if not suggestion or not event:
+        return False
+    return suggestion <= event or event <= suggestion
+
+
+def _interval_estimate(value: Any) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and 0 < value <= MAX_INTERVAL_MILES:
+        return value
+    return None
+
+
+def _done_too_recently(name: str, interval: int | None, vehicle: dict[str, Any], today: datetime) -> bool:
+    """True when the item is not due yet by mileage: a matching recorded service is inside the
+    repeat guard, or (never recorded) the vehicle has not reached the model's interval estimate."""
+    current = vehicle.get("mileage")
+    threshold = max(interval or 0, REPEAT_FLOOR_MILES)
+    matching = [event for event in vehicle.get("history") or [] if _matches_service(name, str(event.get("name", "")))]
+    if not matching and interval and isinstance(current, int) and current < interval:
+        return True
+    for event in matching:
+        event_miles = _event_miles(event)
+        if isinstance(current, int) and event_miles is not None:
+            if current - event_miles < threshold:
+                return True
+            continue
+        try:
+            performed = datetime.strptime(str(event.get("date")), "%b %d, %Y")
+        except ValueError:
+            continue
+        if (today - performed).days < REPEAT_FLOOR_DAYS:
+            return True
+    return False
+
+
+def validate_suggestions(
+    raw: Any,
+    vehicle: dict[str, Any],
+    model: str,
+    today: datetime | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    """Keep only grounded, price-free, non-duplicate suggestions that were not done too recently."""
+    today = today or datetime.now()
     items = raw.get("suggestions") if isinstance(raw, dict) else None
     if not isinstance(items, list):
         raise OllamaRequestError("The local model returned suggestions in an unexpected format. Try again.")
 
     history = vehicle.get("history") or []
     known_names = [_normalized(str(rec.get("name", ""))) for rec in vehicle.get("recs") or []]
-    recorded = _recorded_mileages(vehicle)
     accepted: list[dict[str, Any]] = []
     dropped = 0
 
@@ -250,13 +303,14 @@ def validate_suggestions(raw: Any, vehicle: dict[str, Any], model: str) -> tuple
             and all(isinstance(ref, int) and not isinstance(ref, bool) and 1 <= ref <= len(history) for ref in refs)
         )
         text = f"{name} {reason}"
+        interval = _interval_estimate(item.get("typical_interval_miles"))
         if (
             not name
             or not reason
             or not valid_refs
             or PRICE_PATTERN.search(text)
-            or INTERVAL_PATTERN.search(_without_recorded_mileages(text, recorded))
             or _is_duplicate(name, known_names)
+            or _done_too_recently(name, interval, vehicle, today)
         ):
             dropped += 1
             continue
@@ -274,7 +328,12 @@ def validate_suggestions(raw: Any, vehicle: dict[str, Any], model: str) -> tuple
                 "kind": "ai",
                 "text": reason,
                 "evidence": evidence,
-                "rule": f"Suggested by local model {model}. Not from the demo schedule; advisor must verify.",
+                "rule": (
+                    f"Model estimate ({model}): about every {interval:,} mi. Unverified; check the manufacturer schedule."
+                    if interval
+                    else f"Suggested by local model {model}. Not from the demo schedule; advisor must verify."
+                ),
+                "interval_estimate_miles": interval,
                 "safety": safety,
             }
         )

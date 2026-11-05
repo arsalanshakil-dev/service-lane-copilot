@@ -28,7 +28,7 @@ Updated: 2026-11-05
 
 - Changing, removing, re-ranking, or re-labelling stored recommendations.
 - Persisting AI drafts or suggestions, sending drafts, booking work, or writing records.
-- New MCP tools; cloud models; prices, labor times, or maintenance intervals.
+- New MCP tools; cloud models; prices or labor times. (Maintenance intervals were out of scope until issue #30; AI suggestions may now show a labelled model estimate.)
 - Using simulated telemetry as evidence (it is excluded from the model prompt).
 
 ## Guardrails (validation performed by the backend)
@@ -37,7 +37,7 @@ AI suggestions:
 
 1. Each suggestion must reference one or more recorded service-history entries by number. Out-of-range or missing references → dropped. Evidence text is built by the backend from the referenced entries and the recorded mileage, never from model text.
 2. A suggestion whose name or reason contains a price/currency → dropped.
-3. A suggestion whose name or reason states a time or distance interval (for example "every 5,000 miles", "6 months") → dropped.
+3. ~~A suggestion stating an interval is dropped.~~ Superseded by issue #30: the model returns `typical_interval_miles` (its own unverified estimate). The backend shows it as "Model estimate: about every N mi. Unverified; check the manufacturer schedule." and drops the suggestion when a matching recorded service was done fewer miles ago than that estimate or the 1,000 mi demo floor (or within 30 days when its odometer was not recorded). An item with no matching recorded service is dropped while the vehicle's current mileage is below the model's interval estimate (not due yet). Matching compares service-name keywords (for example "Wiper blade check" matches "Wiper blades").
 4. A suggestion that duplicates a stored recommendation or an earlier suggestion (case-insensitive name match or containment) → dropped.
 5. At most three suggestions are returned. The number dropped is reported.
 6. Safety-related suggestions (model flag or keywords such as brake, tire, steering, suspension, airbag, seat belt, recall, light, leak) are marked safety and shown as verification prompts, not diagnoses.
@@ -61,7 +61,7 @@ AI drafts:
 
 1. Lookup shows the instant template draft; **Generate with local AI** replaces the active draft with model text labelled as local-AI-written, editable, and never sent.
 2. **Suggest more with local AI** shows up to three AI suggestions in a separate labelled section with backend-built evidence from cited history entries.
-3. Invalid suggestions (bad reference, price, interval, duplicate) are dropped and the dropped count is shown.
+3. Invalid suggestions (bad reference, price, duplicate, or repeated too soon after a recorded service) are dropped and the dropped count is shown.
 4. Incomplete, conflicting, missing-mileage, or no-history records return a limitation and no suggestions, with no Ollama call.
 5. Unknown serials return 404 without an Ollama call. Nothing is written to Supabase.
 6. Ollama errors show a clear message and the rest of the page stays usable.
@@ -73,4 +73,4 @@ AI drafts:
 
 ## Open questions
 
-- None. Real maintenance intervals and pricing remain out of scope.
+- None. Real (manufacturer) maintenance schedules and pricing remain out of scope; model interval estimates are labelled unverified.
