@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import isolation  # noqa: F401  (must run before app imports)
+
 import asyncio
 import copy
 import json

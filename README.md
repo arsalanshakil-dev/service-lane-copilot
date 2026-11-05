@@ -14,14 +14,14 @@ Open `http://localhost:3000`. All data is synthetic demo data; nothing is sent t
 
 | Area | What you can do |
 | --- | --- |
-| **Service lane** | Look up a vehicle by serial (or pick a sample). See mileage, simulated OBD-II telemetry, stored recommendations with their evidence and demo rule, and service history. |
+| **Service lane** | Look up a vehicle by serial (or pick a sample). See mileage, simulated OBD-II telemetry, recommendations computed from the maintenance rules (plus Advisor-entered ones) with their evidence, and service history. |
 | **Vehicle records** | Browse and search all 1,000 records (25 per page), open one in the Service lane, **+ Add vehicle**, and open an **✦ AI summary** per row ("Needs now" copied from the record plus short local-AI context). |
 | **Record a service** | **✓ Mark as done** on a recommendation or **+ Record service** in Service history. Saves a history entry, marks the recommendation Completed, and raises current mileage when the odometer is higher. |
 | **Edit a record** | **Edit details** (make, model, year, serial), **Edit** a history entry (history can be corrected but never deleted), **+ Add recommendation** / **Edit** / **Remove** (Advisor-entered), **Update mileage**. Every save appears in the record's **Change log**. |
 | **Customer drafts** | Instant template drafts (Explanation, Quote, Follow-up) plus **✦ Generate with local AI**. Drafts are editable and never sent. |
 | **AI suggestions** | **✦ Suggest more with local AI**: up to three unverified extra items based on mileage and history; items with prices, without history evidence, or done too recently are removed. |
 | **Ask Copilot (chat)** | Ask dealership-service questions about records (general questions are refused). The assistant can propose record changes; each appears as a card and is saved only when you click **Apply change**. |
-| **Settings** | **AI model** for every AI feature, **Appearance** (Light, Dark, System), and **Time zone** for times of day (change log, telemetry). Saved in this browser. |
+| **Settings** | **AI model** for every AI feature, **Appearance** (Light, Dark, System), and **Time zone** for times of day (change log, telemetry), saved in this browser; **Maintenance rules** (miles since last service → Coming up / Due, safety items), stored in the database for everyone. |
 | **Layout** | ☰ in the top bar hides or shows the sidebar on desktop (remembered in this browser). |
 | **MCP** | Local MCP endpoint for agent tools: read, draft, and validated write tools (see below). |
 
@@ -65,13 +65,14 @@ service-lane-copilot/
 │   └── vehicles.json                 # 1,000 synthetic seed fixture records
 ├── supabase/
 │   ├── config.toml                   # Local Supabase project configuration
-│   └── migrations/                   # Postgres schema, RLS, and grants
+│   └── migrations/                   # Postgres schema, RLS, and grants (vehicle_records, service_rules)
 ├── docs/
 │   ├── feature-spec-template.md      # Template for a new feature spec
 │   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits
 │   ├── feature-spec-record-service.md # Recording completed services and status updates
 │   ├── feature-spec-edit-vehicle-records.md # Adding vehicles and editing records with a change log
 │   ├── feature-spec-mcp-write-tools.md # MCP write tools and advisor-confirmed chat changes
+│   ├── feature-spec-editable-rules.md # Editable maintenance rules and computed recommendations
 │   ├── feature-spec-local-ai-assist.md # Local AI drafts and AI-suggested service items
 │   ├── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
 │   └── feature-spec-supabase-database.md # Supabase runtime store and seed behavior
@@ -85,6 +86,8 @@ service-lane-copilot/
 │   │   ├── test_ai_assist.py         # AI draft and suggestion validation checks
 │   │   ├── test_edit_records.py      # Add/edit record routes and change log checks
 │   │   ├── test_mcp_writes.py        # MCP write tools and chat proposal checks
+│   │   ├── test_rules.py             # Rules engine, rules API, and fallback checks
+│   │   ├── isolation.py              # Keeps tests off any real database
 │   │   ├── test_local_agent.py       # Local Ollama chat loop and error-mapping checks
 │   │   ├── test_mileage.py           # Mileage replacement and API regression checks
 │   │   ├── test_record_service.py    # Completed-service recording checks
@@ -93,6 +96,8 @@ service-lane-copilot/
 │       ├── main.py                   # REST, local chat, mileage, and HTTP MCP routes
 │       ├── ai_assist.py              # Local AI drafts and validated AI suggestions
 │       ├── record_edits.py           # Add vehicles; edit details, history, recommendations
+│       ├── rules_engine.py           # Editable maintenance rules and computed recommendations
+│       ├── service_names.py          # Shared service-name matching (rules and AI repeat guard)
 │       ├── local_agent.py            # Local Ollama and MCP tool orchestration
 │       ├── mcp_server.py             # MCP read, draft, and write tools and resources
 │       ├── mcp_writes.py             # Shared validated write operations for MCP tools and chat proposals
@@ -106,6 +111,7 @@ service-lane-copilot/
         ├── chat-panel.tsx             # Advisor chat using local Ollama and MCP
         ├── ai-model.ts               # App-wide AI model choice (Settings) shared by all AI features
         ├── display-prefs.ts          # Theme and time-zone preferences (Settings)
+        ├── rules-settings.tsx        # Settings → Maintenance rules editor
         ├── record-editors.tsx        # Add vehicle, edit details/history/recommendations, change log
         ├── layout.tsx                # App shell and metadata
         └── globals.css               # Global styles
@@ -125,6 +131,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `SERVICE_LANE_COPILOT_SPEC.md` | Product requirements, boundaries, acceptance criteria, and the verification plan. |
 | `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |
 | `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
+| `docs/feature-spec-editable-rules.md` | Editable maintenance rules, how recommendations are computed, rules API, and fallback. |
 | `docs/feature-spec-mcp-write-tools.md` | MCP write tools, chat proposals with Apply/Discard, and the no-history-delete rule. |
 | `docs/feature-spec-edit-vehicle-records.md` | Adding vehicles and editing details, history, and recommendations; 404/409/422 rules and the change log. |
 | `docs/feature-spec-record-service.md` | Recording a completed service: history event, Completed status on a stored recommendation, odometer update, and limits. |
@@ -144,8 +151,12 @@ The tree shows the main source files and intentionally omits generated folders s
 | `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions. |
 | `backend/tests/test_synthetic_generator.py` | Generator checks: fixture matches the generator, consistent mileage and recommendations, even scenario mix, seed validation. |
 | `backend/tests/test_supabase_store.py` | Database adapter, fixture seed validation, and migration access checks. |
+| `backend/app/rules_engine.py` | Loads `service_rules`, computes Due / Coming up / Advisor verification from history and mileage, merges Advisor-entered items, and edits rules with a change log. |
+| `backend/app/service_names.py` | Keyword matching of service names, shared by the rules engine and the AI repeat guard. |
 | `backend/app/record_edits.py` | Add a vehicle, edit details (including serial rename), edit/delete history entries, add/edit/remove recommendations; each write is validated and logged. |
 | `backend/app/ai_assist.py` | Local Ollama customer drafts and AI suggestions; drops suggestions without cited history or with prices, intervals, or duplicates. |
+| `backend/tests/test_rules.py` | Rules engine (Due/Coming up/safety, paused records, latest entry), rules API (validation, duplicates, stale edits, log), and the no-migration fallback. |
+| `backend/tests/isolation.py` | Imported first by every test module; blanks Supabase settings so tests never reach a real database. |
 | `backend/tests/test_mcp_writes.py` | MCP write tools (saved/rejected, actor), chat proposals (no write before Apply, single use, expiry, discard, 422). |
 | `backend/tests/test_edit_records.py` | Add/edit routes: success, 404/409/422 without writes, newest-first history, serial rename, change log limit. |
 | `backend/tests/test_ai_assist.py` | AI draft and suggestion checks: validation rules, backend-built evidence, limited records, 404/503/504/502 mapping, and no writes. |
@@ -160,6 +171,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/app/page.tsx` | Main advisor lookup and service-history screen, Vehicle records list (search and paging), Mark as done / Record service forms, template and local-AI customer drafts, AI suggestions section, and the local chat panel. |
 | `frontend/app/layout.tsx` | Shared page shell and document metadata. |
 | `frontend/app/record-editors.tsx` | Add vehicle form, Edit details, editable history rows, recommendation editor, and Change log panel. |
+| `frontend/app/rules-settings.tsx` | Settings → Maintenance rules: rules table, add/edit/disable, per-rule change history, setup notice. |
 | `frontend/app/display-prefs.ts` | Theme (Light/Dark/System) and time-zone preferences saved in the browser, plus helpers that format times in the chosen zone. |
 | `frontend/app/ai-model.ts` | `useAiModel()` hook: installed local chat models and the app-wide model chosen in Settings (saved in the browser). |
 | `frontend/app/chat-panel.tsx` | In-app assistant conversation, local model selection, and MCP tool usage display. |
@@ -202,6 +214,16 @@ supabase db reset
 Apply the repository migration to your own project using the Supabase CLI linked to that project, then set its project URL and secret key in the backend's ignored `backend/.env`. Run `python seed_supabase.py` from `backend/` to load the synthetic demo rows. Keep the secret key on the Python backend; never place it in frontend environment variables or browser code. The app returns a safe unavailable response when Supabase is missing and does not fall back to the JSON fixture.
 
 The database table has row-level security enabled and grants access only to the backend service role. Keep the API and MCP server local to the machine for this demo.
+
+### Maintenance rules (one-time database step)
+
+Recommendations are computed from editable demo rules stored in `public.service_rules`. Until that table exists the app shows the stored recommendations and a "rules not set up" notice.
+
+1. Open your Supabase project → **SQL Editor**.
+2. Paste the contents of `supabase/migrations/20261106000100_create_service_rules.sql` and click **Run**. It creates the table (backend-only access, row-level security) and loads 8 starting demo rules.
+3. Reload the app. Settings → **Maintenance rules** lists the rules; vehicles now show rule-computed Due / Coming up items.
+
+With the Supabase CLI, `supabase db push` applies the same migration. Rules are demo values, not manufacturer schedules.
 
 ## Run locally on Windows PowerShell
 

@@ -12,7 +12,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Callable
 
-from .data_store import UnknownRecommendationError, record_completed_service, update_vehicle_mileage
+from .data_store import UnknownRecommendationError, find_vehicle, record_completed_service, update_vehicle_mileage
+from .rules_engine import effective_vehicle, rule_recommendation_names
 from .record_edits import (
     REC_STATUSES,
     RecordConflictError,
@@ -118,9 +119,13 @@ def _update_mileage(args: dict[str, Any], actor: str) -> dict[str, Any] | None:
 
 def _record_service(args: dict[str, Any], actor: str) -> dict[str, Any] | None:
     recommendation = _text(args, "recommendation_name", 120, required=False) or None
-    return record_completed_service(_text(args, "serial", 32), _text(args, "service_name", 80),
+    serial = _text(args, "serial", 32)
+    current = find_vehicle(serial) if recommendation else None
+    rule_names = rule_recommendation_names(current) if current else None
+    return record_completed_service(serial, _text(args, "service_name", 80),
                                     _past_date(args, "service_date"), _int(args, "mileage", required=False),  # type: ignore[arg-type]
-                                    _text(args, "detail", 200, required=False), recommendation, actor=actor)
+                                    _text(args, "detail", 200, required=False), recommendation, actor=actor,
+                                    completable_rule_names=rule_names)
 
 
 def _edit_history(args: dict[str, Any], actor: str) -> dict[str, Any] | None:
@@ -195,6 +200,7 @@ def execute_write(tool: str, args: dict[str, Any], actor: str) -> dict[str, Any]
     if vehicle is None:
         raise WriteRejected("No synthetic vehicle record found for that serial.")
     log = vehicle.get("changeLog") or []
+    vehicle = effective_vehicle(vehicle) or vehicle
     return {
         "saved": True,
         "serial": vehicle["serial"],

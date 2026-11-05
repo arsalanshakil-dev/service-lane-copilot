@@ -11,6 +11,7 @@ from mcp.server import MCPServer
 
 from .data_store import find_vehicle, load_vehicles, search_vehicle_summaries
 from .mcp_writes import MCP_ACTOR, WriteRejected, execute_write
+from .rules_engine import effective_vehicle
 
 mcp_server = MCPServer(
     "Service Lane Copilot",
@@ -48,7 +49,7 @@ def search_vehicle_records(query: str = "", limit: int = 20) -> dict[str, Any]:
 @mcp_server.tool()
 def get_vehicle_record(serial: str) -> dict[str, Any]:
     """Retrieve one synthetic vehicle record, simulated-only telemetry, service history, and recorded demo recommendations. Telemetry is not live and is not recommendation evidence."""
-    vehicle = find_vehicle(serial)
+    vehicle = effective_vehicle(find_vehicle(serial))
     if vehicle is None:
         return {
             "found": False,
@@ -65,7 +66,7 @@ def create_customer_draft(
     draft_type: Literal["explanation", "quote", "followup"] = "explanation",
 ) -> dict[str, Any]:
     """Prepare an editable customer-facing draft. Nothing is sent or submitted."""
-    vehicle = find_vehicle(serial)
+    vehicle = effective_vehicle(find_vehicle(serial))
     if vehicle is None:
         return {
             "found": False,
@@ -180,7 +181,7 @@ def demo_guide() -> str:
 @mcp_server.resource("vehicle://{serial}")
 def vehicle_resource(serial: str) -> str:
     """Expose one synthetic vehicle record as a read-only MCP resource."""
-    vehicle = find_vehicle(serial)
+    vehicle = effective_vehicle(find_vehicle(serial))
     if vehicle is None:
         return json.dumps(
             {
