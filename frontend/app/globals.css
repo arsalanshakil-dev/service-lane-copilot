@@ -358,3 +358,11 @@ html[data-theme="dark"] .copy-button.meta-action{border-color:#34453a;background
 @media(max-width:760px){.recommendation.compact .rec-row{flex-wrap:wrap}.rec-summary{white-space:normal}}
 html[data-theme="dark"] .verify-marker{background:#3a2422;color:#f0a89f}
 html[data-theme="dark"] .rec-safety-note{color:#e5b366}
+
+/* Records page size (issue #56) */
+.records-pager{flex-wrap:wrap}
+.page-size{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.page-size select{height:32px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);padding:0 8px;font-size:13px}
+.pager-buttons{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+html[data-theme="dark"] .page-size select{background:#202c26;border-color:#34453a;color:#d8e3dd}
+@media(max-width:760px){.records-pager{flex-direction:column;align-items:stretch}.pager-buttons{justify-content:space-between}}
