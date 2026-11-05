@@ -73,7 +73,7 @@ Updated: 2026-11-05
 
 ## Verification plan
 
-- Automated checks: Not added or run in this implementation task.
+- Automated checks: `python -m unittest discover -s tests -v` from `backend/` covers replacement, provenance, conflict handling, invalid inputs, future dates, and unknown serials. Added under issue #10; not run in this environment.
 - Manual review: Inspect REST validation and UI state flow; exercise valid update, reload, unknown serial, invalid payload, and conflicting-history cases when the local runtime is available.
 - Security/data-boundary review: Confirm only local synthetic data is changed and no MCP write operation is added.
 
