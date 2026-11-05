@@ -3,17 +3,19 @@
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import date
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from .data_store import (
     VehicleStoreUnavailableError,
     find_vehicle,
     load_vehicles,
     search_vehicle_summaries,
+    UnknownRecommendationError,
+    record_completed_service,
     update_vehicle_mileage,
 )
 from .mcp_server import mcp_server, mcp_http_app
@@ -53,6 +55,18 @@ class ManualMileageUpdate(BaseModel):
     mileage: int = Field(ge=0)
     mileage_date: date = Field(alias="mileageDate")
     mileage_source: Literal["advisor_observed", "customer_reported"] = Field(alias="mileageSource")
+
+
+class CompletedServiceRecord(BaseModel):
+    """Advisor-confirmed completed service for a synthetic record (issue #28)."""
+
+    service_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)] = Field(
+        alias="serviceName"
+    )
+    service_date: date = Field(alias="serviceDate")
+    mileage: int | None = Field(default=None, ge=0)
+    detail: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] = ""
+    recommendation_name: str | None = Field(default=None, alias="recommendationName", max_length=120)
 
 
 @asynccontextmanager
@@ -138,6 +152,7 @@ def capabilities() -> dict[str, Any]:
             "get_vehicle": "/api/vehicles/{serial}",
             "vehicle_record_data": ["synthetic identity", "mileage", "service history", "demo recommendations", "simulated OBD telemetry"],
             "update_manual_mileage": "PATCH /api/vehicles/{serial}/mileage",
+            "record_completed_service": "POST /api/vehicles/{serial}/services",
             "local_chat_models": "GET /api/chat/models",
             "local_mcp_chat": "POST /api/chat",
             "local_ai_draft": "POST /api/vehicles/{serial}/ai-draft",
@@ -271,6 +286,31 @@ def update_manual_mileage(serial: str, payload: ManualMileageUpdate) -> dict[str
     except OSError as exc:
         raise HTTPException(status_code=500, detail="Could not save the synthetic mileage update.") from exc
 
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
+    return vehicle
+
+
+@app.post("/api/vehicles/{serial}/services", tags=["Vehicles"])
+def record_service(serial: str, payload: CompletedServiceRecord) -> dict[str, Any]:
+    """Record an advisor-completed service in a synthetic record and save it to Supabase.
+
+    Adds a service-history event, optionally marks one stored recommendation Completed,
+    and raises current mileage when the service odometer is higher. No interval is calculated.
+    """
+    if payload.service_date > date.today():
+        raise HTTPException(status_code=422, detail="Service date cannot be in the future.")
+    try:
+        vehicle = record_completed_service(
+            serial,
+            payload.service_name,
+            payload.service_date.isoformat(),
+            payload.mileage,
+            payload.detail,
+            payload.recommendation_name,
+        )
+    except UnknownRecommendationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if vehicle is None:
         raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
     return vehicle

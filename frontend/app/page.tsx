@@ -54,6 +54,20 @@ type AiSuggestionsResult = {
 const isChatModel = (name: string) => !/(?:embed|embedding|all-minilm)/i.test(name);
 
 /** POST JSON to the local backend and return parsed JSON, or throw a readable error. */
+type ServiceFormState = {
+  recommendationName: string | null;
+  serviceName: string;
+  serviceDate: string;
+  mileage: string;
+  detail: string;
+};
+
+/** Today's date as YYYY-MM-DD in the advisor's local time zone. */
+function todayIso(): string {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   const response = await fetch(url, {
     method: "POST",
@@ -173,6 +187,8 @@ export default function Home() {
   const [manualMileageSource, setManualMileageSource] = useState<"advisor_observed" | "customer_reported">("advisor_observed");
   const [savingMileage, setSavingMileage] = useState(false);
   const [manualMileageOpen, setManualMileageOpen] = useState(false);
+  const [serviceForm, setServiceForm] = useState<ServiceFormState | null>(null);
+  const [savingService, setSavingService] = useState(false);
   const [aiModels, setAiModels] = useState<string[]>([]);
   const [aiModel, setAiModel] = useState("");
   const [aiModelsError, setAiModelsError] = useState("");
@@ -209,6 +225,41 @@ export default function Home() {
       cancelled = true;
     };
   }, []);
+
+  function openServiceForm(recommendationName: string | null) {
+    if (!vehicle) return;
+    setServiceForm({
+      recommendationName,
+      serviceName: recommendationName ?? "",
+      serviceDate: todayIso(),
+      mileage: vehicle.mileage == null ? "" : String(vehicle.mileage),
+      detail: "",
+    });
+  }
+
+  async function saveService(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!vehicle || !serviceForm || savingService) return;
+    setSavingService(true);
+    try {
+      const updated = await postJson<Vehicle>(`/api/copilot/vehicles/${encodeURIComponent(vehicle.serial)}/services`, {
+        serviceName: serviceForm.serviceName,
+        serviceDate: serviceForm.serviceDate,
+        mileage: serviceForm.mileage === "" ? null : Number(serviceForm.mileage),
+        detail: serviceForm.detail,
+        recommendationName: serviceForm.recommendationName,
+      });
+      setVehicle(updated);
+      setDraftText(draftFor(updated, activeDraft));
+      resetAiOutput();
+      setServiceForm(null);
+      notify(`${serviceForm.serviceName} recorded and saved to the vehicle record`);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not save the service.");
+    } finally {
+      setSavingService(false);
+    }
+  }
 
   function resetAiOutput() {
     setAiDraftModel(null);
@@ -291,6 +342,7 @@ export default function Home() {
     setManualMileageDate("");
     setManualMileageSource("advisor_observed");
     setManualMileageOpen(false);
+    setServiceForm(null);
     try {
       const response = await fetch(`/api/copilot/vehicles/${encodeURIComponent(normalized)}`, {
         headers: { Accept: "application/json" },
@@ -408,7 +460,7 @@ export default function Home() {
             {(vehicle.mileage == null || manualMileageOpen) && <section className="manual-mileage" aria-labelledby="manual-mileage-title"><div><h3 id="manual-mileage-title">{vehicle.mileage == null ? "Enter current mileage" : "Replace current mileage"}</h3><p>{vehicle.mileage == null ? "No odometer reading is available. Record a manual reading for this synthetic vehicle." : "Enter an advisor-confirmed reading to replace the current synthetic mileage. The previous value is not retained."}</p></div><form className="manual-mileage-form" onSubmit={saveManualMileage}><label>Odometer miles<input type="number" min="0" step="1" inputMode="numeric" required value={manualMileage} onChange={(event) => setManualMileage(event.target.value)} placeholder="e.g. 48,120" /></label><label>Reading date<input type="date" required value={manualMileageDate} onChange={(event) => setManualMileageDate(event.target.value)} /></label><label>Reading source<select value={manualMileageSource} onChange={(event) => setManualMileageSource(event.target.value as "advisor_observed" | "customer_reported")}><option value="advisor_observed">Advisor-observed</option><option value="customer_reported">Customer-reported</option></select></label><button className="primary-button manual-mileage-submit" type="submit" disabled={savingMileage}>{savingMileage ? "Saving…" : "Save mileage"}</button></form><p className="manual-mileage-note">Saving replaces the current mileage field. Earlier mileage is not retained. Recommendations remain paused if service-history evidence is incomplete or conflicting.</p></section>}
             {incomplete && <><div className="warning-banner"><b>!</b><span>{vehicle.conflicting ? "Mileage conflict: a recorded service mileage is higher than the current odometer reading. Reconcile the records before using service timing." : vehicle.mileage != null && vehicle.completeness === "History incomplete" ? "Current mileage is recorded, but service history is incomplete or missing event mileage. Recommendations remain paused until the advisor can verify supporting history; do not infer a due service." : vehicle.mileage != null ? "The mileage record is old, so service timing cannot be confirmed. Ask the customer for the current odometer reading and verify the record." : "Mileage is missing and service history is incomplete. Do not infer a due service from this record. Get a current odometer reading and request the missing history."}</span></div><div className="path-grid record-paths"><article className="path-card"><h3>Update dealership service record</h3><p>Prepare an intake draft to confirm vehicle details, mileage, and missing service history.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for advisor review. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</>}
             <div className="section-heading"><h3>{incomplete ? "Recommendations" : "Service recommendations"}</h3><span className="count-badge">{incomplete ? "Evidence needed" : `${vehicle.recs.length} items to review`}</span></div>
-            {incomplete ? <div className="evidence">{vehicle.mileage == null ? "Recommendations are paused until a current mileage reading and relevant service history are verified." : "Manual mileage is saved, but service-history evidence is still incomplete. Recommendations remain paused until the advisor can verify it."}</div> : vehicle.recs.length ? vehicle.recs.map((rec, index) => <RecommendationCard key={`${rec.name}-${index}`} rec={rec} />) : <div className="evidence">No items match the configured demo rules. This does not replace review against an approved maintenance schedule.</div>}
+            {incomplete ? <div className="evidence">{vehicle.mileage == null ? "Recommendations are paused until a current mileage reading and relevant service history are verified." : "Manual mileage is saved, but service-history evidence is still incomplete. Recommendations remain paused until the advisor can verify it."}</div> : vehicle.recs.length ? vehicle.recs.map((rec, index) => <div key={`${rec.name}-${index}`}><RecommendationCard rec={rec} onComplete={rec.kind === "done" ? undefined : () => openServiceForm(rec.name)} />{serviceForm?.recommendationName === rec.name && <ServiceForm form={serviceForm} saving={savingService} onChange={setServiceForm} onSubmit={saveService} onCancel={() => setServiceForm(null)} />}</div>) : <div className="evidence">No items match the configured demo rules. This does not replace review against an approved maintenance schedule.</div>}
             <AiSuggestionsSection
               result={aiSuggestions}
               busy={aiSuggestBusy}
@@ -417,7 +469,7 @@ export default function Home() {
               modelsError={aiModelsError}
               onSuggest={() => void suggestWithAi()}
             />
-            <div className="history-list"><div className="section-heading"><h3>Service history</h3><span className="count-badge">{vehicle.history.length} events</span></div>{vehicle.history.map((event, index) => <div className="history-row" key={`${event.name}-${index}`}><span className="history-date">{event.date}</span><span className="history-name">{event.name}<span className="history-detail">{event.detail}</span></span><span className="history-mileage">{event.mileage}</span></div>)}</div>
+            <div className="history-list"><div className="section-heading"><h3>Service history</h3><span className="history-actions"><span className="count-badge">{vehicle.history.length} events</span><button className="copy-button" type="button" onClick={() => openServiceForm(null)} disabled={savingService}>+ Record service</button></span></div>{serviceForm && serviceForm.recommendationName === null && <ServiceForm form={serviceForm} saving={savingService} onChange={setServiceForm} onSubmit={saveService} onCancel={() => setServiceForm(null)} />}{vehicle.history.map((event, index) => <div className="history-row" key={`${event.name}-${index}`}><span className="history-date">{event.date}</span><span className="history-name">{event.name}<span className="history-detail">{event.detail}</span></span><span className="history-mileage">{event.mileage}</span></div>)}</div>
           </section>
           <aside className="side-column"><section className="panel"><div className="panel-title-row"><div><h3>Customer drafts</h3><div className="panel-subtitle">Editable · Nothing is sent</div></div><span className="draft-type">FOR REVIEW</span></div><div className="draft-tabs" role="tablist" aria-label="Customer draft type">{(["explanation", "quote", "followup"] as DraftKind[]).map((kind) => <button key={kind} className={`draft-tab ${activeDraft === kind ? "active" : ""}`} role="tab" aria-selected={activeDraft === kind} type="button" onClick={() => chooseDraft(kind)}>{kind === "followup" ? "Follow-up" : kind[0].toUpperCase() + kind.slice(1)}</button>)}</div><div className="ai-draft-row"><label className="sr-only" htmlFor="ai-model">Local AI model</label><select id="ai-model" value={aiModel} onChange={(event) => setAiModel(event.target.value)} disabled={aiModels.length === 0 || aiDraftBusy || aiSuggestBusy} title="Local Ollama model used for AI drafts and suggestions">{aiModels.length === 0 ? <option value="">No local model</option> : aiModels.map((name) => <option key={name} value={name}>{name}</option>)}</select><button className="copy-button ai-button" type="button" onClick={() => void generateAiDraft()} disabled={!aiModel || aiDraftBusy}>{aiDraftBusy ? "Writing… (can take a few minutes)" : "✦ Generate with local AI"}</button></div>{(aiDraftError || aiModelsError) && <p className="ai-error" role="alert">{aiDraftError || aiModelsError} The template draft is still available.</p>}<textarea className="draft-editor" aria-label="Editable customer draft" aria-busy={aiDraftBusy} value={draftText} onChange={(event) => setDraftText(event.target.value)} /><div className="draft-actions"><span className="draft-status">{aiDraftModel ? `Written by local AI (${aiDraftModel}) · review before sharing` : "Template draft · Review details before sharing"}</span><button className="copy-button" type="button" onClick={() => void copyDraft()}>Copy draft</button></div><p className="disclaimer">Draft text is based only on the synthetic record and demo rules. Check all details and pricing before use.</p></section><section className="panel"><div className="panel-title-row"><div><h3>Record details</h3><div className="panel-subtitle">From synthetic dealership history</div></div><span className="draft-type">DEMO</span></div><div className="evidence"><strong>Lookup key</strong><br />Synthetic vehicle serial: {vehicle.serial}</div><div className="evidence" style={{ marginTop: 8 }}><strong>Planned vehicle source</strong><br />OBD-II/CAN may provide a VIN; make, model, and year can be decoded from it. Odometer support varies by vehicle and adapter. This demo uses synthetic data; service history remains separate.</div><p className="disclaimer">No physical vehicle or dealership system is connected.</p></section></aside>
         </div>}
@@ -447,9 +499,27 @@ function AiSuggestionsSection({ result, busy, error, model, modelsError, onSugge
   );
 }
 
-function RecommendationCard({ rec }: { rec: Recommendation }) {
-  const kind = rec.kind === "safety" ? "safety" : rec.status === "Not yet due" ? "neutral" : rec.kind;
-  return <article className="recommendation"><div className="rec-top"><span className="rec-title">{rec.name}</span><span className={`status ${kind}`}>{rec.status}</span></div><p className="rec-copy">{rec.text}</p><div className="evidence"><strong>Why it appears</strong><br />{rec.evidence}</div><p className="source-note">{rec.rule}</p>{rec.safety && <div className="warning-banner"><b>!</b><span>Safety-related: verify against an approved source before discussing or recommending work.</span></div>}</article>;
+function RecommendationCard({ rec, onComplete }: { rec: Recommendation; onComplete?: () => void }) {
+  const done = rec.kind === "done";
+  const kind = done ? "done" : rec.kind === "safety" ? "safety" : rec.status === "Not yet due" ? "neutral" : rec.kind;
+  return <article className={`recommendation ${done ? "completed" : ""}`}><div className="rec-top"><span className="rec-title">{done && <span aria-hidden="true">✓ </span>}{rec.name}</span><span className={`status ${kind}`}>{rec.status}</span></div><p className="rec-copy">{rec.text}</p><div className="evidence"><strong>{done ? "Completion record" : "Why it appears"}</strong><br />{rec.evidence}</div><p className="source-note">{rec.rule}</p>{rec.safety && !done && <div className="warning-banner"><b>!</b><span>Safety-related: verify against an approved source before discussing or recommending work.</span></div>}{onComplete && <div className="rec-actions"><button className="copy-button" type="button" onClick={onComplete}>✓ Mark as done</button></div>}</article>;
+}
+
+function ServiceForm({ form, saving, onChange, onSubmit, onCancel }: { form: ServiceFormState; saving: boolean; onChange: (form: ServiceFormState) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onCancel: () => void }) {
+  const fixedName = form.recommendationName !== null;
+  return (
+    <form className="service-form" onSubmit={onSubmit} aria-label={fixedName ? `Record ${form.serviceName} as done` : "Record a completed service"}>
+      <h4>{fixedName ? `Record “${form.serviceName}” as done` : "Record a completed service"}</h4>
+      <div className="service-form-grid">
+        {!fixedName && <label>Service<input required maxLength={80} value={form.serviceName} onChange={(event) => onChange({ ...form, serviceName: event.target.value })} placeholder="e.g. Wiper blades" /></label>}
+        <label>Date done<input type="date" required max={todayIso()} value={form.serviceDate} onChange={(event) => onChange({ ...form, serviceDate: event.target.value })} /></label>
+        <label>Odometer (mi)<input type="number" min="0" step="1" inputMode="numeric" value={form.mileage} onChange={(event) => onChange({ ...form, mileage: event.target.value })} placeholder="Leave blank if not read" /></label>
+        <label className="service-form-note">Note (optional)<input maxLength={200} value={form.detail} onChange={(event) => onChange({ ...form, detail: event.target.value })} placeholder="e.g. Synthetic oil, OEM filter" /></label>
+      </div>
+      <p className="manual-mileage-note">Saved to the vehicle record. Adds a service-history entry{fixedName ? " and marks this recommendation Completed" : ""}. A higher odometer reading also updates current mileage. No next-due date is calculated.</p>
+      <div className="service-form-actions"><button className="copy-button" type="button" onClick={onCancel} disabled={saving}>Cancel</button><button className="primary-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save service"}</button></div>
+    </form>
+  );
 }
 
 function DraftEditor({ label, value, onChange, onCopy }: { label: string; value: string; onChange: (value: string) => void; onCopy: () => void }) {
