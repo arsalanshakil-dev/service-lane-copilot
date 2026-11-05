@@ -56,6 +56,23 @@ def _execute(query: Any) -> list[dict[str, Any]]:
     return rows
 
 
+CHANGE_LOG_LIMIT = 100
+NEW_RECORD_COMPLETENESS = "New record – history needed"
+WEB_ACTOR = "advisor (web app)"
+
+
+def append_change(record: dict[str, Any], action: str, summary: str, actor: str = WEB_ACTOR) -> None:
+    """Append one change-log entry to a record (newest last), keeping the latest 100 (issue #42)."""
+    log = list(record.get("changeLog") or [])
+    log.append({
+        "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "action": action,
+        "actor": actor,
+        "summary": summary[:300],
+    })
+    record["changeLog"] = log[-CHANGE_LOG_LIMIT:]
+
+
 def _validated_record(row: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     serial = row.get("serial")
     record = row.get("record")
@@ -198,6 +215,7 @@ def update_vehicle_mileage(
         updated["conflicting"] = has_conflict
         if has_conflict:
             updated["completeness"] = "Conflicting mileage"
+        append_change(updated, "mileage_updated", f"Current mileage set to {mileage:,} mi ({mileage_source.replace('_', '-')}, {mileage_date}).")
 
         try:
             result = (
@@ -304,6 +322,11 @@ def record_completed_service(
             updated["mileage"] = mileage
             updated["mileageDate"] = service_date
             updated["mileageSource"] = "advisor_observed"
+        # A vehicle added through the app (issue #42) becomes a usable record once it has
+        # history and a known mileage; otherwise its recommendations would stay paused forever.
+        if current.get("completeness") == NEW_RECORD_COMPLETENESS and updated.get("mileage") is not None:
+            updated["completeness"] = "Advisor-entered record"
+            updated["incomplete"] = False
 
         history_miles = [
             int(digits)
@@ -315,6 +338,12 @@ def record_completed_service(
             updated["conflicting"] = has_conflict
             if has_conflict:
                 updated["completeness"] = "Conflicting mileage"
+        append_change(
+            updated,
+            "service_recorded",
+            f"Recorded {service_name} on {display_date} at {mileage_text}"
+            + (f"; marked '{recommendation_name}' Completed." if recommendation_name else "."),
+        )
 
         try:
             result = (

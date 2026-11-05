@@ -58,7 +58,26 @@ class FakeQuery:
         self.payload = copy.deepcopy(payload)
         return self
 
+    def insert(self, payload: dict) -> "FakeQuery":
+        self.operation = "insert"
+        self.payload = copy.deepcopy(payload)
+        return self
+
+    def delete(self) -> "FakeQuery":
+        self.operation = "delete"
+        return self
+
     def execute(self) -> SimpleNamespace:
+        if self.operation == "insert":
+            assert self.payload is not None
+            if self.payload["serial"] in self.client.rows:
+                raise RuntimeError("duplicate key value violates unique constraint")
+            self.client.rows[self.payload["serial"]] = copy.deepcopy(self.payload)
+            return SimpleNamespace(data=[copy.deepcopy(self.payload)])
+        if self.operation == "delete":
+            serial = self.filters.get("serial")
+            removed = self.client.rows.pop(serial, None) if isinstance(serial, str) else None
+            return SimpleNamespace(data=[removed] if removed else [])
         if self.operation == "update":
             serial = self.filters.get("serial")
             if not isinstance(serial, str) or serial not in self.client.rows:

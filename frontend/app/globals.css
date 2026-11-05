@@ -239,3 +239,30 @@ html[data-theme="dark"] .rec-copy{color:var(--muted)}
 .chat-settings-link{font-size:12px}
 html[data-theme="dark"] .settings-control select{background:#202c26;border-color:#34453a;color:#d8e3dd}
 html[data-theme="dark"] .chat-model-name{color:#e7eeea}
+
+/* Add vehicles and edit records (issue #42) */
+.vehicle-top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.link-button{border:0;background:none;padding:4px 6px;min-height:28px;color:var(--green);font-size:12px;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.link-button.danger{color:var(--red)}
+.link-button:disabled{opacity:.5;cursor:not-allowed}
+.edited-tag{display:inline-block;margin-left:6px;font-size:11px;font-weight:700;color:#4b54a3;background:#eef0fb;border-radius:8px;padding:1px 6px;vertical-align:1px}
+.history-row-editable{grid-template-columns:96px 1fr auto auto}
+.row-actions{display:flex;align-items:center;gap:2px;white-space:nowrap}
+.confirm-text{font-size:12px;font-weight:700;color:var(--red);margin-right:2px}
+.row-error{grid-column:1/-1}
+.rec-actions{gap:6px;align-items:center}
+.inline-confirm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border:1px solid #f1d6d1;background:#fff7f5;border-radius:8px;padding:10px 12px;margin:8px 0;font-size:13px}
+.edit-form select{height:32px;border:1px solid #dfe4e1;border-radius:6px;padding:0 8px;font-size:12px;background:#fff;color:#343e3a}
+.checkbox-label{flex-direction:row!important;align-items:center;gap:6px!important;grid-column:1/-1}
+.checkbox-label input{height:auto}
+.records-view .page-heading{align-items:center}
+.add-missing{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 16px;font-size:13px;color:var(--muted)}
+.change-log-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.change-log-list li{display:flex;flex-direction:column;gap:2px;font-size:12px;border-bottom:1px solid var(--line);padding-bottom:7px}
+.change-log-list li:last-child{border-bottom:0}
+.change-log-list time{font-size:11px;color:var(--muted)}
+.change-log-list small{font-size:11px;color:var(--muted)}
+@media(max-width:760px){.history-row-editable{grid-template-columns:1fr auto}.history-row-editable .history-date{grid-column:1/-1}.row-actions{grid-column:1/-1}}
+html[data-theme="dark"] .edited-tag{background:#2a2f4d;color:#c4c9f5}
+html[data-theme="dark"] .inline-confirm{background:#3a2422;border-color:#5a3430;color:#f0d0cb}
+html[data-theme="dark"] .edit-form select{background:#202c26;border-color:#34453a;color:#d8e3dd}
