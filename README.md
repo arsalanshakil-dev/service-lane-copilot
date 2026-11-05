@@ -33,6 +33,8 @@ The web app chat uses only local Ollama and calls the same registered MCP server
 ```text
 service-lane-copilot/
 ├── AGENTS.md                         # Agent workflow and safety rules
+├── .github/
+│   └── workflows/verify.yml           # Backend regression and frontend build checks on PRs
 ├── CONTEXT.md                        # Short onboarding overview
 ├── MEMORY.md                         # Verified architecture and open gaps
 ├── README.md                         # Setup, architecture, and folder map
@@ -69,7 +71,7 @@ The tree shows the main source files and intentionally omits generated folders s
 
 | File | What it contains |
 | --- | --- |
-| `AGENTS.md` | Required workflow, safety boundaries, and documentation upkeep rules for coding agents. |
+| `AGENTS.md` | Required workflow, safety boundaries, and documentation upkeep rules for coding agents. |\n| `.github/workflows/verify.yml` | Runs backend regression checks and the frontend production build for pull requests and main pushes. |
 | `CONTEXT.md` | Short onboarding explanation of the project and links to the authoritative docs. |
 | `MEMORY.md` | Verified architecture, local run commands, current implementation status, and known gaps. |
 | `SERVICE_LANE_COPILOT_SPEC.md` | Product requirements, boundaries, acceptance criteria, and the verification plan. |
