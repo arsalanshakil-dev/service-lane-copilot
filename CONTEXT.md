@@ -17,7 +17,7 @@ The demo uses 1,000 fictional vehicle records. It is not a production maintenanc
 ## Main advisor workflow
 
 1. Enter a vehicle serial number in the web app, or open **Vehicle records** to browse and search all records and select one. Each record has an **✦ AI summary** with an exact "Needs now" list from the stored record plus short, unverified local-AI context.
-2. Review the matching synthetic vehicle, mileage, history, data timing, limitations, and a separately labeled simulated 5-minute telemetry recording that can be scrolled and zoomed.
+2. Review the matching synthetic vehicle (Overview, History, Telemetry, and Change log tabs), mileage, history, data timing, limitations, and a separately labeled simulated 5-minute telemetry recording that can be scrolled and zoomed.
 3. Review explicitly stored due or coming-up examples with their record evidence and demo rule.
 4. Add a new vehicle from **Vehicle records** (or from a not-found lookup), and correct records in place: **Edit details**, edit service-history entries (history is never deleted), and add, edit, or remove recommendations (marked Advisor-entered). Every save is listed in the record's **Change log**. The chat can propose the same changes; they are saved only after you click **Apply change**.
    If current mileage is missing or needs correction, replace it with an advisor-confirmed reading, date, and source in the local synthetic record; mileage alone does not resolve missing history.

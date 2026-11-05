@@ -103,7 +103,7 @@ export function TelemetryPanel({ serial, stored }: { serial: string; stored?: St
   return (
     <section className="obd-card" aria-labelledby="obd-title">
       {header}
-      <p className="obd-notice">{recording.notice} {safety}</p>
+      <p className="obd-notice compact" title={`${recording.notice} ${safety}`}>Simulated recording · no vehicle connected · never used as evidence.</p>
       <div className="obd-controls" role="group" aria-label="Telemetry time window" tabIndex={0} onKeyDown={onKeyDown}>
         <div className="obd-zoom" role="radiogroup" aria-label="Window size">
           {WINDOWS.map((option) => (
@@ -142,7 +142,7 @@ export function TelemetryPanel({ serial, stored }: { serial: string; stored?: St
           );
         })}
       </div>
-      <div className="obd-source-note">Source: synthetic recording generator · No adapter connected · Use ◀ ▶, the slider, or arrow keys to scroll; hover a chart to read values.</div>
+      <div className="obd-source-note">Scroll with ◀ ▶, the slider, or arrow keys · hover a chart to read values.</div>
     </section>
   );
 }
