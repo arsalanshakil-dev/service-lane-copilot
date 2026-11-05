@@ -1,5 +1,7 @@
 # Instructions for coding agents
 
+These instructions apply to every coding agent. Claude Code loads them through `CLAUDE.md`, which imports this file; edit this file, not `CLAUDE.md`.
+
 ## Read before changing code
 
 1. Read `SERVICE_LANE_COPILOT_SPEC.md` for product behavior and acceptance criteria.
@@ -12,6 +14,7 @@
 - `SERVICE_LANE_COPILOT_SPEC.md` and linked feature specs define approved product behavior.
 - This file defines the development process and safety rules.
 - `MEMORY.md` is a compact continuity aid. It must not add product requirements or override the spec.
+- `CONTEXT.md` is the onboarding overview. It summarizes the project and must not create or override requirements.
 - When a request changes behavior, update the spec before implementation. If scope or safety is unclear, ask a focused question before implementing the uncertain part.
 
 ## Ticket, branch, and pull request workflow
@@ -20,7 +23,7 @@ For every project task that changes project files—including documentation, con
 
 1. Create a new ticket in the project's configured issue tracker before making project changes. Include the request, scope, and observable acceptance criteria. Link the ticket from the branch and pull request.
 2. Create a dedicated branch from the current `main` branch and do all task work on that branch, using an isolated worktree when available. Never make task changes directly on `main`.
-3. Implement the ticket, run the required checks, and update the relevant specs, memory, README diagrams, folder tree, and file guide as needed.
+3. Implement the ticket, run the required checks, and update the relevant specs, `MEMORY.md`, `CONTEXT.md`, README diagrams, folder tree, and file guide as described in the required workflow below.
 4. Open a pull request from the task branch into `main`. Include the ticket link, a concise change summary, check results, and any unverified items.
 5. Leave the pull request open for human review. Do not self-approve, bypass required checks, or merge before a human reviewer has approved it. Address requested changes and request review again.
 6. After human approval is recorded, merge the pull request into `main` using the repository's normal protected-branch process. Do not bypass branch protections or merge if required approvals/checks are missing.
@@ -37,7 +40,10 @@ For every project change on its ticket branch:
 4. Add or update automated checks for changed behavior. At minimum, backend data/API/MCP changes need checks for known and unknown records, data limitations, correct evidence, and no side effects. Frontend changes need type/build checks and relevant interaction checks.
 5. Run checks required by the spec when the environment allows. If a check cannot run, report it as unverified with the concrete blocker; never substitute a guess for a passing result.
 6. Review the complete diff for unsupported claims, generated data leaks, access expansion, unsafe commands, and changes outside the task.
-7. Update the spec and `MEMORY.md` with verified decisions, implementation state, and open gaps. Do not record assumptions as facts.
+7. Keep the project documents in step with every new requirement and every change, in the same branch and pull request:
+   - When a new requirement or user decision is accepted, record it in `SERVICE_LANE_COPILOT_SPEC.md` and the relevant feature spec in `docs/` **before** implementing it.
+   - After the change, update the spec and feature spec with the final behavior and acceptance criteria, `MEMORY.md` with verified decisions, implementation state, live-check results, and open gaps, and `CONTEXT.md` whenever the project overview, advisor workflow, boundaries, or document map changes.
+   - Do not record assumptions as facts. If a document needs no change, say so in the pull request.
 8. Keep the architecture diagram, folder tree, and key-file guide in `README.md` current whenever a change adds, removes, or moves a component, source folder, or important project file. Update them in the same change and verify they match the implementation.
 
 ## Project safety rules

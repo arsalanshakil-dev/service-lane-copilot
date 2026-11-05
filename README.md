@@ -37,6 +37,7 @@ The web app chat uses only local Ollama and calls the same registered MCP server
 ```text
 service-lane-copilot/
 ├── AGENTS.md                         # Agent workflow and safety rules
+├── CLAUDE.md                         # Claude Code entry point; imports AGENTS.md
 ├── .github/
 │   └── workflows/verify.yml           # Backend regression and frontend build checks on PRs
 ├── CONTEXT.md                        # Short onboarding overview
@@ -87,7 +88,8 @@ The tree shows the main source files and intentionally omits generated folders s
 
 | File | What it contains |
 | --- | --- |
-| `AGENTS.md` | Required workflow, safety boundaries, and documentation upkeep rules for coding agents. |
+| `AGENTS.md` | Required workflow, safety boundaries, and documentation upkeep rules for coding agents, including updating the spec, `MEMORY.md`, and `CONTEXT.md` with every new requirement and change. |
+| `CLAUDE.md` | Claude Code instructions file; imports `AGENTS.md` with `@AGENTS.md` so both stay identical. Edit `AGENTS.md`, not this file. |
 | `.github/workflows/verify.yml` | Runs backend regression checks and the frontend production build for pull requests and main pushes. |
 | `CONTEXT.md` | Short onboarding explanation of the project and links to the authoritative docs. |
 | `MEMORY.md` | Verified architecture, local run commands, current implementation status, and known gaps. |
