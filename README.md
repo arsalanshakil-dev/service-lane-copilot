@@ -14,8 +14,10 @@ An OBD-II/CAN adapter is a planned optional source for a later connected version
 flowchart LR
     Advisor[Service advisor] -->|serial number, review, edit drafts| Web[Next.js web app and chat\nfrontend/app]
     Web -->|/api/copilot/* rewrite| API[FastAPI REST and chat API\nbackend/app/main.py]
-    API -->|lookup and advisor mileage update| Store[Shared synthetic data loader and mileage writer\nbackend/app/data_store.py]
-    Store --> Data[(250 synthetic records\ndata/vehicles.json)]
+    API -->|lookup and advisor mileage update| Store[Supabase data adapter\nbackend/app/data_store.py]
+    Store --> Data[(Supabase Postgres\npublic.vehicle_records)]
+    Seed[Seed command\nbackend/seed_supabase.py] -->|250 synthetic fixture records| Data
+    Fixture[(data/vehicles.json\nseed fixture only)] --> Seed
     API --> Agent[Local agent loop\nbackend/app/local_agent.py]
     Agent -->|HTTP loopback only · /api/chat| Ollama[Local Ollama\n127.0.0.1:11434]
     Agent -->|in-process MCP client| MCP
