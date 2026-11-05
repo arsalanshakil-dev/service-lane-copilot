@@ -20,6 +20,8 @@ flowchart LR
     Fixture[(data/vehicles.json\nseed fixture only)] --> Seed
     API --> Agent[Local agent loop\nbackend/app/local_agent.py]
     Agent -->|HTTP loopback only · /api/chat| Ollama[Local Ollama\n127.0.0.1:11434]
+    API --> Assist[AI drafts and validated suggestions\nbackend/app/ai_assist.py]
+    Assist -->|one loopback call · think false| Ollama
     Agent -->|in-process MCP client| MCP
     Harness[MCP-compatible agent harness] -->|Streamable HTTP /mcp| MCP[MCP server\nbackend/app/mcp_server.py]
     Harness -->|stdio| Launcher[backend/mcp_stdio.py]
@@ -49,6 +51,7 @@ service-lane-copilot/
 ├── docs/
 │   ├── feature-spec-template.md      # Template for a new feature spec
 │   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits
+│   ├── feature-spec-local-ai-assist.md # Local AI drafts and AI-suggested service items
 │   ├── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
 │   └── feature-spec-supabase-database.md # Supabase runtime store and seed behavior
 ├── backend/
@@ -57,11 +60,13 @@ service-lane-copilot/
 │   ├── seed_supabase.py              # Idempotent synthetic fixture loader
 │   ├── mcp_stdio.py                  # Local stdio MCP launcher
 │   ├── tests/
+│   │   ├── test_ai_assist.py         # AI draft and suggestion validation checks
 │   │   ├── test_local_agent.py       # Local Ollama chat loop and error-mapping checks
 │   │   ├── test_mileage.py           # Mileage replacement and API regression checks
 │   │   └── test_supabase_store.py    # Supabase adapter, seed, and migration checks
 │   └── app/
 │       ├── main.py                   # REST, local chat, mileage, and HTTP MCP routes
+│       ├── ai_assist.py              # Local AI drafts and validated AI suggestions
 │       ├── local_agent.py            # Local Ollama and MCP tool orchestration
 │       ├── mcp_server.py             # Read-only MCP tools and resources
 │       └── data_store.py             # Supabase data access and mileage update
@@ -92,6 +97,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `README.md` | Setup instructions, architecture diagram, folder tree, file guide, endpoints, and sample serial numbers. |
 | `data/vehicles.json` | The 250 fictional seed records; loaded into Supabase by the seed command and never read at runtime. |
 | `supabase/config.toml` and `supabase/migrations/` | Local Supabase configuration and private vehicle table schema with row-level security. |
+| `docs/feature-spec-local-ai-assist.md` | Local AI customer drafts and AI-suggested service items, with grounding and validation guardrails. |
 | `docs/feature-spec-supabase-database.md` | Approved Supabase runtime, credentials, seed, and failure behavior. |
 | `backend/seed_supabase.py` | Idempotently loads the synthetic JSON fixture into `public.vehicle_records`. |
 | `backend/app/data_store.py` | Supabase runtime reads and advisor mileage updates. |
@@ -101,13 +107,15 @@ The tree shows the main source files and intentionally omits generated folders s
 | `backend/app/mcp_server.py` | MCP server setup, read-only tools, resources, and draft responses exposed to both harnesses and in-app chat. |
 | `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions. |
 | `backend/tests/test_supabase_store.py` | Database adapter, fixture seed validation, and migration access checks. |
+| `backend/app/ai_assist.py` | Local Ollama customer drafts and AI suggestions; drops suggestions without cited history or with prices, intervals, or duplicates. |
+| `backend/tests/test_ai_assist.py` | AI draft and suggestion checks: validation rules, backend-built evidence, limited records, 404/503/504/502 mapping, and no writes. |
 | `backend/tests/test_local_agent.py` | Local Ollama chat checks: `think: false` payload, grounded MCP tool round-trip, and 503/504 error mapping. |
 | `backend/tests/test_mileage.py` | Standard-library regression checks for replacement, provenance, conflict, and API validation. |
 | `frontend/package.json` | Frontend scripts and pinned direct dependencies. |
 | `frontend/package-lock.json` | Exact resolved frontend dependency versions for repeatable npm installs. |
 | `frontend/next.config.ts` | Rewrite from browser `/api/copilot/*` requests to the local FastAPI `/api/*` routes. |
 | `frontend/.env.local.example` | Example backend URL setting for local development. |
-| `frontend/app/page.tsx` | Main advisor lookup and service-history screen with the local chat panel mounted. |
+| `frontend/app/page.tsx` | Main advisor lookup and service-history screen, template and local-AI customer drafts, AI suggestions section, and the local chat panel. |
 | `frontend/app/layout.tsx` | Shared page shell and document metadata. |
 | `frontend/app/chat-panel.tsx` | In-app assistant conversation, local model selection, and MCP tool usage display. |
 | `frontend/app/icon.svg` | Service Lane Copilot favicon for browser tabs. |

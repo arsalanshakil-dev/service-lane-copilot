@@ -14,7 +14,7 @@ This MVP uses synthetic vehicles, service histories, and clearly labeled example
 - **Runtime database:** Supabase Postgres, accessed only by the Python backend. `data/vehicles.json` is the checked-in synthetic seed fixture, not a runtime fallback.
 - **Synthetic seed:** 250 synthetic vehicle records can be loaded with the idempotent backend seed command.
 - **Manual mileage:** advisor-reviewed `PATCH /api/vehicles/{serial}/mileage` replaces the current value in the synthetic record stored in Supabase; this is the only REST write route, and MCP remains read-only.
-- **API connection:** Next.js rewrites `/api/copilot/*` to the local FastAPI service, avoiding a separate browser CORS configuration for the demo. In development, allow both `localhost` and `127.0.0.1` so Next.js client assets and HMR work from either loopback address.
+- **API connection:** Next.js rewrites `/api/copilot/*` to the local FastAPI service, avoiding a separate browser CORS configuration for the demo. In development, allow both `localhost` and `127.0.0.1` so Next.js client assets and HMR work from either loopback address. Set the rewrite proxy timeout (`experimental.proxyTimeout`) to 1,800,000 ms so local Ollama requests are not cut off by the 30-second default.
 - **Agent connection:** MCP Streamable HTTP at `/mcp` and stdio for local subprocess-based agent harnesses.
 - **Local runtime:** Node.js 20.9+ and Python 3.11+.
 
@@ -114,6 +114,14 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Vehicle facts, recommendation evidence, and safety status must be grounded in MCP tool/resource output. Incomplete or conflicting data remains uncertain. The model cannot decide maintenance intervals.
 - Conversation history is kept in browser memory only.
 - See `docs/feature-spec-local-ollama-chat.md`.
+
+### Local AI drafts and AI-suggested service items
+
+- The Customer drafts panel keeps the instant template draft and offers **Generate with local AI**, which replaces the active draft with local-Ollama-written text that is editable and never sent.
+- **Suggest more with local AI** shows up to three model-suggested service items in a separate section labelled "AI suggestion — unverified". They never change stored recommendations.
+- Each AI suggestion must cite recorded service-history entries; the backend builds its evidence from those entries and drops suggestions with invalid citations, prices, stated intervals, or duplicates. Safety-related suggestions are verification prompts only.
+- Records with missing mileage, incomplete or conflicting data, or no history return no AI suggestions and a limitation.
+- See `docs/feature-spec-local-ai-assist.md`.
 
 ### Drafts and approvals
 

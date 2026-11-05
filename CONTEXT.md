@@ -4,7 +4,7 @@
 
 Service Lane Copilot is a local demonstration app for dealership service advisors. It helps an advisor look up a vehicle in a synthetic dealership service-history dataset, review evidence-backed demo service items, and prepare editable customer or record-request drafts.
 
-The demo uses 250 fictional vehicle records. It is not a production maintenance system and does not provide real vehicle advice. Recommendations come from explicit synthetic record data and example rules, not a language model's judgment.
+The demo uses 250 fictional vehicle records. It is not a production maintenance system and does not provide real vehicle advice. Stored recommendations come from explicit synthetic record data and example rules, not a language model's judgment. Separately, the advisor can ask the local Ollama model for up to three extra "AI suggestion — unverified" items; these are shown apart from the stored recommendations, must cite recorded service history, and are filtered by the backend (no prices, intervals, or duplicates).
 
 ## How it is built
 
@@ -20,9 +20,10 @@ The demo uses 250 fictional vehicle records. It is not a production maintenance 
 2. Review the matching synthetic vehicle, mileage, history, data timing, limitations, and separately labeled simulated telemetry trends.
 3. Review explicitly stored due or coming-up examples with their record evidence and demo rule.
 4. If current mileage is missing or needs correction, replace it with an advisor-confirmed reading, date, and source in the local synthetic record; mileage alone does not resolve missing history.
-5. Prepare and edit customer explanations, quote text, follow-ups, or record/history request drafts.
-6. The advisor can use the same lookup, evidence, and draft capabilities through the in-app local assistant.
-7. The advisor decides what to do with each draft; the app does not send or submit it.
+5. Prepare and edit customer explanations, quote text, follow-ups, or record/history request drafts. Template drafts appear instantly; **Generate with local AI** rewrites the active draft with a local Ollama model (no prices; never sent).
+6. Optionally request **AI suggestions** for extra items to check. Records with missing mileage, incomplete or conflicting data, or no history get a limitation message instead.
+7. The advisor can use the same lookup, evidence, and draft capabilities through the in-app local assistant.
+8. The advisor decides what to do with each draft; the app does not send or submit it.
 
 No match or incomplete, stale, or contradictory data must remain visible as uncertainty. The app must not fill gaps or present an unsupported service as necessary. Safety-related items are prompts for advisor verification, not diagnoses.
 
@@ -37,7 +38,7 @@ No match or incomplete, stale, or contradictory data must remain visible as unce
 
 ## Which document governs what
 
-- [`SERVICE_LANE_COPILOT_SPEC.md`](SERVICE_LANE_COPILOT_SPEC.md) is the **authoritative product requirements and acceptance criteria**. Change it first when product behavior or scope changes.
+- [`SERVICE_LANE_COPILOT_SPEC.md`](SERVICE_LANE_COPILOT_SPEC.md) is the **authoritative product requirements and acceptance criteria**. Change it first when product behavior or scope changes. Feature specs in `docs/` (for example [`docs/feature-spec-local-ai-assist.md`](docs/feature-spec-local-ai-assist.md)) hold the detailed rules for individual features.
 - [`AGENTS.md`](AGENTS.md) defines the coding workflow and safety rules.
 - [`MEMORY.md`](MEMORY.md) is a short, verified implementation status and known-gaps summary. It is not a requirements source.
 - `CONTEXT.md` is an onboarding map only. It summarizes the project and links to the controlling documents; it must not create or override requirements.
