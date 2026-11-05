@@ -17,6 +17,7 @@ from .data_store import (
     update_vehicle_mileage,
 )
 from .mcp_server import mcp_server, mcp_http_app
+from .ai_assist import generate_ai_draft, generate_ai_suggestions
 from .local_agent import (
     OllamaRequestError,
     OllamaTimeoutError,
@@ -35,6 +36,15 @@ class LocalChatRequest(BaseModel):
     model: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=4_000)
     history: list[ChatTurn] = Field(default_factory=list, max_length=12)
+
+
+class AiDraftRequest(BaseModel):
+    model: str = Field(min_length=1, max_length=200)
+    draft_type: Literal["explanation", "quote", "followup"] = Field(alias="draftType")
+
+
+class AiSuggestionsRequest(BaseModel):
+    model: str = Field(min_length=1, max_length=200)
 
 
 class ManualMileageUpdate(BaseModel):
@@ -130,6 +140,8 @@ def capabilities() -> dict[str, Any]:
             "update_manual_mileage": "PATCH /api/vehicles/{serial}/mileage",
             "local_chat_models": "GET /api/chat/models",
             "local_mcp_chat": "POST /api/chat",
+            "local_ai_draft": "POST /api/vehicles/{serial}/ai-draft",
+            "local_ai_suggestions": "POST /api/vehicles/{serial}/ai-suggestions",
         },
         "mcp": {
             "streamable_http": "/mcp",
@@ -203,6 +215,43 @@ async def local_chat(payload: LocalChatRequest) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+def _ollama_http_error(exc: Exception) -> HTTPException:
+    """Map a local Ollama failure to the same 504/503/502 responses as the chat route."""
+    if isinstance(exc, OllamaTimeoutError):
+        return HTTPException(status_code=504, detail=str(exc))
+    if isinstance(exc, OllamaUnavailableError):
+        return HTTPException(
+            status_code=503,
+            detail="Ollama is unavailable. Start the local Ollama app and try again.",
+        )
+    return HTTPException(status_code=502, detail=str(exc))
+
+
+async def _known_vehicle(serial: str) -> dict[str, Any]:
+    vehicle = await asyncio.to_thread(find_vehicle, serial)
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
+    return vehicle
+
+
+@app.post("/api/vehicles/{serial}/ai-draft", tags=["Vehicles"])
+async def ai_customer_draft(serial: str, payload: AiDraftRequest) -> dict[str, Any]:
+    """Write an editable customer draft with a local Ollama model. Nothing is sent or stored."""
+    vehicle = await _known_vehicle(serial)
+    try:
+        return await generate_ai_draft(payload.model, vehicle, payload.draft_type)
+    except (OllamaUnavailableError, OllamaRequestError) as exc:
+        raise _ollama_http_error(exc) from exc
+
+
+@app.post("/api/vehicles/{serial}/ai-suggestions", tags=["Vehicles"])
+async def ai_service_suggestions(serial: str, payload: AiSuggestionsRequest) -> dict[str, Any]:
+    """Return up to three validated, unverified AI-suggested service items. Nothing is stored."""
+    vehicle = await _known_vehicle(serial)
+    try:
+        return await generate_ai_suggestions(payload.model, vehicle)
+    except (OllamaUnavailableError, OllamaRequestError) as exc:
+        raise _ollama_http_error(exc) from exc
 
 
 @app.patch("/api/vehicles/{serial}/mileage", tags=["Vehicles"])

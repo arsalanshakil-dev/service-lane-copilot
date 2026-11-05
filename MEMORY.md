@@ -16,7 +16,10 @@ This file is a continuity summary, not a requirements document. Product requirem
 
 ## Architecture facts
 
-- REST endpoints: `GET /api/health`, `GET /api/vehicles`, `GET /api/vehicles/{serial}`, `PATCH /api/vehicles/{serial}/mileage`, `GET /api/chat/models`, and `POST /api/chat`.
+- REST endpoints: `GET /api/health`, `GET /api/vehicles`, `GET /api/vehicles/{serial}`, `PATCH /api/vehicles/{serial}/mileage`, `GET /api/chat/models`, `POST /api/chat`, `POST /api/vehicles/{serial}/ai-draft`, and `POST /api/vehicles/{serial}/ai-suggestions`.
+- `backend/app/ai_assist.py` (issue #22) makes one `think: false` Ollama call per request. AI drafts reject prices; AI suggestions use a JSON-schema `format`, must cite history entries by number, and are dropped for invalid citations, prices, stated intervals, or duplicates (max 3). Evidence text is built by the backend from cited entries. Records with missing mileage, incomplete/conflicting flags, or no history return a limitation without an Ollama call. Telemetry is excluded from prompts. Nothing is persisted. The page keeps instant template drafts and shows AI suggestions in a separate "Unverified" section. Live check 2026-11-05 with `qwen3.5:4b` on CPU: suggestions for NS-2048 and NS-7316 returned 3 grounded items each (cabin air filter, battery, wipers; 0 dropped) in 64–94 s after the prompt was reworded (the first wording produced empty lists); an explanation draft for NS-2048 returned HTTP 200 in 21 s through the Next proxy. Gap: the model may group an "Advisor verification" item with due/coming-up items in draft wording.
+- Next.js's rewrite proxy cut requests off at its 30 s default ("socket hang up" → HTTP 500 in the browser), which also affected the chat panel. `frontend/next.config.ts` sets `experimental.proxyTimeout: 1_800_000`.
+- On Windows, uvicorn `--reload` was observed (2026-11-05) to log "Reloading…" after a new module was added but keep serving old code; restart the backend if new routes return FastAPI's generic 404.
 - Swagger UI: `/docs`; OpenAPI JSON: `/openapi.json`; REST/MCP interface summary: `/api/capabilities`.
 - MCP Streamable HTTP endpoint: `http://127.0.0.1:8000/mcp`, mounted in `backend/app/main.py`.
 - MCP stdio launcher: `backend/mcp_stdio.py`.

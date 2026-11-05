@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import ChatPanel from "./chat-panel";
 
 type Recommendation = {
@@ -42,6 +42,38 @@ type Vehicle = {
 
 type DraftKind = "explanation" | "quote" | "followup";
 type RecordDraftKind = "register" | "history";
+
+type AiSuggestionsResult = {
+  suggestions: Recommendation[];
+  dropped: number;
+  limitation: string | null;
+  model: string;
+};
+
+// Embedding-only Ollama models cannot write text; keep them out of the local AI selector.
+const isChatModel = (name: string) => !/(?:embed|embedding|all-minilm)/i.test(name);
+
+/** POST JSON to the local backend and return parsed JSON, or throw a readable error. */
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  let data: { detail?: unknown } | null = null;
+  try {
+    data = JSON.parse(text) as { detail?: unknown };
+  } catch {
+    data = null;
+  }
+  if (!response.ok) {
+    const detail = typeof data?.detail === "string" ? data.detail : "";
+    throw new Error(detail || `The local AI request failed (HTTP ${response.status}). Check that the backend and Ollama are running.`);
+  }
+  if (data === null) throw new Error("The local AI service returned an unreadable response.");
+  return data as T;
+}
 
 const sampleSerials = [
   "NS-2048", "NS-7316", "NS-5192", "NS-8840", "NS-4402", "NS-1026", "NS-6621",
@@ -141,6 +173,93 @@ export default function Home() {
   const [manualMileageSource, setManualMileageSource] = useState<"advisor_observed" | "customer_reported">("advisor_observed");
   const [savingMileage, setSavingMileage] = useState(false);
   const [manualMileageOpen, setManualMileageOpen] = useState(false);
+  const [aiModels, setAiModels] = useState<string[]>([]);
+  const [aiModel, setAiModel] = useState("");
+  const [aiModelsError, setAiModelsError] = useState("");
+  const [aiDraftModel, setAiDraftModel] = useState<string | null>(null);
+  const [aiDraftBusy, setAiDraftBusy] = useState(false);
+  const [aiDraftError, setAiDraftError] = useState("");
+  const [aiSuggestions, setAiSuggestions] = useState<AiSuggestionsResult | null>(null);
+  const [aiSuggestBusy, setAiSuggestBusy] = useState(false);
+  const [aiSuggestError, setAiSuggestError] = useState("");
+  // Ignore slow local-AI responses that arrive after the advisor has moved to another vehicle.
+  const currentSerial = useRef("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAiModels() {
+      try {
+        const response = await fetch("/api/copilot/chat/models", { headers: { Accept: "application/json" } });
+        const data = (await response.json()) as { models?: string[]; detail?: string };
+        if (!response.ok) throw new Error(data.detail ?? "Local Ollama is unavailable.");
+        const chatModels = (data.models ?? []).filter(isChatModel);
+        if (cancelled) return;
+        setAiModels(chatModels);
+        setAiModel((current) => (chatModels.includes(current) ? current : chatModels[0] ?? ""));
+        setAiModelsError(chatModels.length ? "" : "No local Ollama chat model is installed.");
+      } catch (error) {
+        if (!cancelled) {
+          setAiModels([]);
+          setAiModelsError(error instanceof Error ? error.message : "Local Ollama is unavailable.");
+        }
+      }
+    }
+    void loadAiModels();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function resetAiOutput() {
+    setAiDraftModel(null);
+    setAiDraftError("");
+    setAiSuggestions(null);
+    setAiSuggestError("");
+  }
+
+  async function generateAiDraft() {
+    if (!vehicle || !aiModel || aiDraftBusy) return;
+    const serialAtRequest = vehicle.serial;
+    const kind = activeDraft;
+    setAiDraftBusy(true);
+    setAiDraftError("");
+    try {
+      const data = await postJson<{ draft_text: string; model: string }>(
+        `/api/copilot/vehicles/${encodeURIComponent(serialAtRequest)}/ai-draft`,
+        { model: aiModel, draftType: kind },
+      );
+      if (currentSerial.current !== serialAtRequest) return;
+      setActiveDraft(kind);
+      setDraftText(data.draft_text);
+      setAiDraftModel(data.model);
+    } catch (error) {
+      if (currentSerial.current === serialAtRequest) {
+        setAiDraftError(error instanceof Error ? error.message : "The local AI draft failed.");
+      }
+    } finally {
+      setAiDraftBusy(false);
+    }
+  }
+
+  async function suggestWithAi() {
+    if (!vehicle || !aiModel || aiSuggestBusy) return;
+    const serialAtRequest = vehicle.serial;
+    setAiSuggestBusy(true);
+    setAiSuggestError("");
+    try {
+      const data = await postJson<AiSuggestionsResult>(
+        `/api/copilot/vehicles/${encodeURIComponent(serialAtRequest)}/ai-suggestions`,
+        { model: aiModel },
+      );
+      if (currentSerial.current === serialAtRequest) setAiSuggestions(data);
+    } catch (error) {
+      if (currentSerial.current === serialAtRequest) {
+        setAiSuggestError(error instanceof Error ? error.message : "The local AI suggestions failed.");
+      }
+    } finally {
+      setAiSuggestBusy(false);
+    }
+  }
 
   function notify(message: string) {
     setToast(message);
@@ -163,6 +282,8 @@ export default function Home() {
     if (!normalized) return;
 
     setLoading(true);
+    currentSerial.current = normalized;
+    resetAiOutput();
     setVehicle(null);
     setMissingSerial(null);
     setRecordDraft("");
@@ -219,6 +340,8 @@ export default function Home() {
       const updatedVehicle = data as Vehicle;
       setVehicle(updatedVehicle);
       setDraftText(draftFor(updatedVehicle, activeDraft));
+      // AI output was based on the old mileage; clear it so nothing stale is shown.
+      resetAiOutput();
       setManualMileage("");
       setManualMileageDate("");
       setManualMileageOpen(false);
@@ -234,6 +357,8 @@ export default function Home() {
     if (!vehicle) return;
     setActiveDraft(kind);
     setDraftText(draftFor(vehicle, kind));
+    setAiDraftModel(null);
+    setAiDraftError("");
   }
 
   async function copyDraft() {
@@ -284,9 +409,17 @@ export default function Home() {
             {incomplete && <><div className="warning-banner"><b>!</b><span>{vehicle.conflicting ? "Mileage conflict: a recorded service mileage is higher than the current odometer reading. Reconcile the records before using service timing." : vehicle.mileage != null && vehicle.completeness === "History incomplete" ? "Current mileage is recorded, but service history is incomplete or missing event mileage. Recommendations remain paused until the advisor can verify supporting history; do not infer a due service." : vehicle.mileage != null ? "The mileage record is old, so service timing cannot be confirmed. Ask the customer for the current odometer reading and verify the record." : "Mileage is missing and service history is incomplete. Do not infer a due service from this record. Get a current odometer reading and request the missing history."}</span></div><div className="path-grid record-paths"><article className="path-card"><h3>Update dealership service record</h3><p>Prepare an intake draft to confirm vehicle details, mileage, and missing service history.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for advisor review. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</>}
             <div className="section-heading"><h3>{incomplete ? "Recommendations" : "Service recommendations"}</h3><span className="count-badge">{incomplete ? "Evidence needed" : `${vehicle.recs.length} items to review`}</span></div>
             {incomplete ? <div className="evidence">{vehicle.mileage == null ? "Recommendations are paused until a current mileage reading and relevant service history are verified." : "Manual mileage is saved, but service-history evidence is still incomplete. Recommendations remain paused until the advisor can verify it."}</div> : vehicle.recs.length ? vehicle.recs.map((rec, index) => <RecommendationCard key={`${rec.name}-${index}`} rec={rec} />) : <div className="evidence">No items match the configured demo rules. This does not replace review against an approved maintenance schedule.</div>}
+            <AiSuggestionsSection
+              result={aiSuggestions}
+              busy={aiSuggestBusy}
+              error={aiSuggestError}
+              model={aiModel}
+              modelsError={aiModelsError}
+              onSuggest={() => void suggestWithAi()}
+            />
             <div className="history-list"><div className="section-heading"><h3>Service history</h3><span className="count-badge">{vehicle.history.length} events</span></div>{vehicle.history.map((event, index) => <div className="history-row" key={`${event.name}-${index}`}><span className="history-date">{event.date}</span><span className="history-name">{event.name}<span className="history-detail">{event.detail}</span></span><span className="history-mileage">{event.mileage}</span></div>)}</div>
           </section>
-          <aside className="side-column"><section className="panel"><div className="panel-title-row"><div><h3>Customer drafts</h3><div className="panel-subtitle">Editable · Nothing is sent</div></div><span className="draft-type">FOR REVIEW</span></div><div className="draft-tabs" role="tablist" aria-label="Customer draft type">{(["explanation", "quote", "followup"] as DraftKind[]).map((kind) => <button key={kind} className={`draft-tab ${activeDraft === kind ? "active" : ""}`} role="tab" aria-selected={activeDraft === kind} type="button" onClick={() => chooseDraft(kind)}>{kind === "followup" ? "Follow-up" : kind[0].toUpperCase() + kind.slice(1)}</button>)}</div><textarea className="draft-editor" aria-label="Editable customer draft" value={draftText} onChange={(event) => setDraftText(event.target.value)} /><div className="draft-actions"><span className="draft-status">Review details before sharing</span><button className="copy-button" type="button" onClick={() => void copyDraft()}>Copy draft</button></div><p className="disclaimer">Draft text is based only on the synthetic record and demo rules. Check all details and pricing before use.</p></section><section className="panel"><div className="panel-title-row"><div><h3>Record details</h3><div className="panel-subtitle">From synthetic dealership history</div></div><span className="draft-type">DEMO</span></div><div className="evidence"><strong>Lookup key</strong><br />Synthetic vehicle serial: {vehicle.serial}</div><div className="evidence" style={{ marginTop: 8 }}><strong>Planned vehicle source</strong><br />OBD-II/CAN may provide a VIN; make, model, and year can be decoded from it. Odometer support varies by vehicle and adapter. This demo uses synthetic data; service history remains separate.</div><p className="disclaimer">No physical vehicle or dealership system is connected.</p></section></aside>
+          <aside className="side-column"><section className="panel"><div className="panel-title-row"><div><h3>Customer drafts</h3><div className="panel-subtitle">Editable · Nothing is sent</div></div><span className="draft-type">FOR REVIEW</span></div><div className="draft-tabs" role="tablist" aria-label="Customer draft type">{(["explanation", "quote", "followup"] as DraftKind[]).map((kind) => <button key={kind} className={`draft-tab ${activeDraft === kind ? "active" : ""}`} role="tab" aria-selected={activeDraft === kind} type="button" onClick={() => chooseDraft(kind)}>{kind === "followup" ? "Follow-up" : kind[0].toUpperCase() + kind.slice(1)}</button>)}</div><div className="ai-draft-row"><label className="sr-only" htmlFor="ai-model">Local AI model</label><select id="ai-model" value={aiModel} onChange={(event) => setAiModel(event.target.value)} disabled={aiModels.length === 0 || aiDraftBusy || aiSuggestBusy} title="Local Ollama model used for AI drafts and suggestions">{aiModels.length === 0 ? <option value="">No local model</option> : aiModels.map((name) => <option key={name} value={name}>{name}</option>)}</select><button className="copy-button ai-button" type="button" onClick={() => void generateAiDraft()} disabled={!aiModel || aiDraftBusy}>{aiDraftBusy ? "Writing… (can take a few minutes)" : "✦ Generate with local AI"}</button></div>{(aiDraftError || aiModelsError) && <p className="ai-error" role="alert">{aiDraftError || aiModelsError} The template draft is still available.</p>}<textarea className="draft-editor" aria-label="Editable customer draft" aria-busy={aiDraftBusy} value={draftText} onChange={(event) => setDraftText(event.target.value)} /><div className="draft-actions"><span className="draft-status">{aiDraftModel ? `Written by local AI (${aiDraftModel}) · review before sharing` : "Template draft · Review details before sharing"}</span><button className="copy-button" type="button" onClick={() => void copyDraft()}>Copy draft</button></div><p className="disclaimer">Draft text is based only on the synthetic record and demo rules. Check all details and pricing before use.</p></section><section className="panel"><div className="panel-title-row"><div><h3>Record details</h3><div className="panel-subtitle">From synthetic dealership history</div></div><span className="draft-type">DEMO</span></div><div className="evidence"><strong>Lookup key</strong><br />Synthetic vehicle serial: {vehicle.serial}</div><div className="evidence" style={{ marginTop: 8 }}><strong>Planned vehicle source</strong><br />OBD-II/CAN may provide a VIN; make, model, and year can be decoded from it. Odometer support varies by vehicle and adapter. This demo uses synthetic data; service history remains separate.</div><p className="disclaimer">No physical vehicle or dealership system is connected.</p></section></aside>
         </div>}
 
         {missingSerial && <section className="empty-result"><div className="empty-icon">⌕</div><h2>No demo record found for {missingSerial}</h2><p>This serial number is not in the synthetic dealership dataset. Check the number, register the vehicle in dealership service records, or request service history from another dealership. The requests below are drafts for the advisor to review.</p><div className="path-grid"><article className="path-card"><h3>Add to dealership service records</h3><p>Prepare a draft intake request. Confirm vehicle details and customer authorization through dealership procedures.</p><button type="button" onClick={() => setRecordDraft(missingRecordDraft(missingSerial, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for the customer or advisor to use with another dealership. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(missingRecordDraft(missingSerial, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</section>}
@@ -296,6 +429,21 @@ export default function Home() {
       <ChatPanel />
       {toast && <div className="toast show" role="status">{toast}</div>}
     </div>
+  );
+}
+
+function AiSuggestionsSection({ result, busy, error, model, modelsError, onSuggest }: { result: AiSuggestionsResult | null; busy: boolean; error: string; model: string; modelsError: string; onSuggest: () => void }) {
+  return (
+    <section className="ai-suggestions" aria-labelledby="ai-suggestions-title" aria-busy={busy}>
+      <div className="section-heading"><h3 id="ai-suggestions-title">AI suggestions <span className="ai-tag">Unverified</span></h3><button className="copy-button ai-button" type="button" onClick={onSuggest} disabled={!model || busy}>{busy ? "Thinking… (can take a few minutes)" : "✦ Suggest more with local AI"}</button></div>
+      <p className="source-note">Extra items proposed by your local Ollama model{model ? ` (${model})` : ""}. They are not from the demo schedule, never change the recommendations above, and must be verified by the advisor. Items without cited history, or with prices or intervals, are removed automatically.</p>
+      {!model && modelsError && <p className="ai-error" role="alert">{modelsError}</p>}
+      {error && <p className="ai-error" role="alert">{error}</p>}
+      {result?.limitation && <div className="evidence">{result.limitation}</div>}
+      {result && !result.limitation && result.suggestions.length === 0 && <div className="evidence">The local model found no additional items supported by the recorded history.</div>}
+      {result?.suggestions.map((rec, index) => <RecommendationCard key={`ai-${rec.name}-${index}`} rec={rec} />)}
+      {result && result.dropped > 0 && <p className="source-note">{result.dropped} suggestion{result.dropped === 1 ? " was" : "s were"} removed for missing history evidence, prices, intervals, or duplicating a stored recommendation.</p>}
+    </section>
   );
 }
 
