@@ -1,12 +1,17 @@
-"""Shared, read-only access to the synthetic vehicle dataset."""
+"""Shared access to the local synthetic dataset and advisor mileage updates."""
 
 import json
+import os
+import re
+import tempfile
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_FILE = PROJECT_ROOT / "data" / "vehicles.json"
+_DATA_WRITE_LOCK = Lock()
 
 
 @lru_cache(maxsize=1)
@@ -58,3 +63,60 @@ def search_vehicle_summaries(query: str = "", limit: int = 20) -> list[dict[str,
         if len(matches) >= limit:
             break
     return matches
+
+
+def update_vehicle_mileage(
+    serial: str,
+    mileage: int,
+    mileage_date: str,
+    mileage_source: str,
+) -> dict[str, Any] | None:
+    """Replace a known synthetic record's current mileage and persist provenance."""
+    normalized = serial.strip().upper()
+    with _DATA_WRITE_LOCK:
+        vehicles = load_vehicles()
+        current = vehicles.get(normalized)
+        if current is None:
+            return None
+        if current.get("mileage") is not None:
+            raise ValueError("Manual entry is only available when current mileage is missing.")
+
+        history_miles = []
+        for event in current.get("history", []):
+            raw_mileage = str(event.get("mileage", ""))
+            digits = re.sub(r"[^0-9]", "", raw_mileage)
+            if digits:
+                history_miles.append(int(digits))
+
+        has_conflict = bool(history_miles and mileage < max(history_miles))
+        updated = dict(current)
+        updated["mileage"] = mileage
+        updated["mileageDate"] = mileage_date
+        updated["mileageSource"] = mileage_source
+        updated["conflicting"] = has_conflict
+        if has_conflict:
+            updated["completeness"] = "Conflicting mileage"
+
+        updated_vehicles = dict(vehicles)
+        updated_vehicles[normalized] = updated
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=DATA_FILE.parent,
+                prefix=".vehicles-",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                json.dump(updated_vehicles, temporary_file, ensure_ascii=False, indent=2)
+                temporary_file.write("\\n")
+            os.replace(temporary_path, DATA_FILE)
+        except OSError:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+            raise
+
+        load_vehicles.cache_clear()
+        return updated
