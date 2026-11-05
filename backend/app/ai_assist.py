@@ -5,7 +5,7 @@ are validated here so that every displayed item cites recorded service history, 
 price, does not duplicate a stored demo recommendation, and is not repeated too soon after a
 recorded service. The model may give its own typical-interval estimate, which is shown as an
 unverified model estimate (approved AGENTS.md exception, issue #30).
-See docs/feature-spec-local-ai-assist.md.
+See docs/spec/feature-spec-local-ai-assist.md.
 """
 
 from __future__ import annotations

@@ -40,7 +40,7 @@ No match or incomplete, stale, or contradictory data must remain visible as unce
 
 ## Which document governs what
 
-- [`SERVICE_LANE_COPILOT_SPEC.md`](SERVICE_LANE_COPILOT_SPEC.md) is the **authoritative product requirements and acceptance criteria**. Change it first when product behavior or scope changes. Feature specs in `docs/` (for example [`docs/feature-spec-local-ai-assist.md`](docs/feature-spec-local-ai-assist.md)) hold the detailed rules for individual features.
+- [`SERVICE_LANE_COPILOT_SPEC.md`](SERVICE_LANE_COPILOT_SPEC.md) is the **authoritative product requirements and acceptance criteria**. Change it first when product behavior or scope changes. Feature specs in `docs/` (for example [`docs/spec/feature-spec-local-ai-assist.md`](docs/spec/feature-spec-local-ai-assist.md)) hold the detailed rules for individual features.
 - [`AGENTS.md`](AGENTS.md) defines the coding workflow and safety rules, including keeping the spec, `MEMORY.md`, and this file current with every new requirement and change. [`CLAUDE.md`](CLAUDE.md) imports it so Claude Code follows the same rules.
 - [`MEMORY.md`](MEMORY.md) is a short, verified implementation status and known-gaps summary. It is not a requirements source.
 - `CONTEXT.md` is an onboarding map only. It summarizes the project and links to the controlling documents; it must not create or override requirements.
