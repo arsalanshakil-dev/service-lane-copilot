@@ -143,6 +143,13 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - No next-due interval is calculated; MCP and chat stay read-only. Unknown serial → 404; invalid input or an unknown recommendation → 422 with no write.
 - See `docs/feature-spec-record-service.md`.
 
+### Adding vehicles and editing records (issue #42)
+
+- Advisors can add a vehicle (serial, make, model, year, optional mileage), edit vehicle details including a serial rename, edit or delete individual history entries, and add, edit, or remove recommendations. Advisor-written recommendations are labelled "Advisor-entered" (approved exception in AGENTS.md).
+- Index-based edits name the expected entry; a stale request returns 409 without writing. Duplicate serials return 409; invalid input returns 422; unknown serials return 404.
+- Every REST write, including mileage and completed services, appends a change-log entry to the record (latest 100 kept), shown under Record details.
+- MCP stays read-only in this change. See `docs/feature-spec-edit-vehicle-records.md`.
+
 ### Drafts and approvals
 
 - Customer explanations, quote text, follow-ups, vehicle-registration requests, and external-history requests are drafts only.

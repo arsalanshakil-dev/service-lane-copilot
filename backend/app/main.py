@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import date
+from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -19,6 +20,17 @@ from .data_store import (
     update_vehicle_mileage,
 )
 from .mcp_server import mcp_server, mcp_http_app
+from .record_edits import (
+    RecordConflictError,
+    RecordValidationError,
+    add_recommendation,
+    create_vehicle,
+    delete_history_entry,
+    delete_recommendation,
+    update_history_entry,
+    update_recommendation,
+    update_vehicle_details,
+)
 from .ai_assist import generate_ai_draft, generate_ai_summary, generate_ai_suggestions
 from .local_agent import (
     OllamaRequestError,
@@ -67,6 +79,57 @@ class CompletedServiceRecord(BaseModel):
     mileage: int | None = Field(default=None, ge=0)
     detail: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] = ""
     recommendation_name: str | None = Field(default=None, alias="recommendationName", max_length=120)
+
+
+# ---- Add and edit vehicle records (issue #42) ----
+
+ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+NameText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+LongText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=400)]
+
+
+class NewVehicle(BaseModel):
+    serial: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=32)]
+    make: ShortText
+    model: ShortText
+    year: int = Field(ge=1980)
+    mileage: int | None = Field(default=None, ge=0)
+    mileage_date: date | None = Field(default=None, alias="mileageDate")
+
+
+class VehicleDetailsUpdate(BaseModel):
+    make: ShortText
+    model: ShortText
+    year: int = Field(ge=1980)
+    new_serial: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=32)] | None = Field(
+        default=None, alias="newSerial"
+    )
+
+
+class ExpectedHistoryEntry(BaseModel):
+    date: str = Field(max_length=40)
+    name: str = Field(max_length=120)
+
+
+class HistoryEntryUpdate(BaseModel):
+    expected: ExpectedHistoryEntry
+    service_date: date = Field(alias="serviceDate")
+    name: NameText
+    detail: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] = ""
+    mileage: int | None = Field(default=None, ge=0)
+
+
+class RecommendationInput(BaseModel):
+    name: NameText
+    status: Literal["Due", "Coming up", "Advisor verification", "Not yet due"]
+    text: LongText
+    evidence: LongText
+    rule: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] | None = None
+    safety: bool = False
+
+
+class RecommendationUpdate(RecommendationInput):
+    expected_name: str = Field(alias="expectedName", max_length=120)
 
 
 @asynccontextmanager
@@ -153,6 +216,10 @@ def capabilities() -> dict[str, Any]:
             "vehicle_record_data": ["synthetic identity", "mileage", "service history", "demo recommendations", "simulated OBD telemetry"],
             "update_manual_mileage": "PATCH /api/vehicles/{serial}/mileage",
             "record_completed_service": "POST /api/vehicles/{serial}/services",
+            "add_vehicle": "POST /api/vehicles",
+            "edit_vehicle_details": "PATCH /api/vehicles/{serial}",
+            "edit_or_delete_history_entry": "PUT|DELETE /api/vehicles/{serial}/history/{index}",
+            "add_edit_remove_recommendation": "POST /api/vehicles/{serial}/recommendations; PUT|DELETE .../recommendations/{index}",
             "local_chat_models": "GET /api/chat/models",
             "local_mcp_chat": "POST /api/chat",
             "local_ai_draft": "POST /api/vehicles/{serial}/ai-draft",
@@ -329,6 +396,91 @@ def record_service(serial: str, payload: CompletedServiceRecord) -> dict[str, An
     if vehicle is None:
         raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
     return vehicle
+
+
+def _edit_result(action: Callable[[], dict[str, Any] | None]) -> dict[str, Any]:
+    """Run a record edit and map its outcome to HTTP: None → 404, conflict → 409, invalid → 422."""
+    try:
+        vehicle = action()
+    except RecordConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RecordValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
+    return vehicle
+
+
+def _check_year(year: int) -> None:
+    if year > date.today().year + 1:
+        raise HTTPException(status_code=422, detail="Model year cannot be more than one year in the future.")
+
+
+@app.post("/api/vehicles", tags=["Vehicles"], status_code=201)
+def add_vehicle(payload: NewVehicle) -> dict[str, Any]:
+    """Add a synthetic vehicle with no history yet (recommendations stay paused until history exists)."""
+    _check_year(payload.year)
+    if payload.mileage_date is not None and payload.mileage_date > date.today():
+        raise HTTPException(status_code=422, detail="Mileage date cannot be in the future.")
+    if payload.mileage is not None and payload.mileage_date is None:
+        raise HTTPException(status_code=422, detail="Enter the date the mileage was read.")
+    return _edit_result(lambda: create_vehicle(
+        payload.serial, payload.make, payload.model, payload.year, payload.mileage,
+        payload.mileage_date.isoformat() if payload.mileage_date else None,
+    ))
+
+
+@app.patch("/api/vehicles/{serial}", tags=["Vehicles"])
+def edit_vehicle_details(serial: str, payload: VehicleDetailsUpdate) -> dict[str, Any]:
+    """Edit make, model, year, and optionally rename the serial (409 if the new serial exists)."""
+    _check_year(payload.year)
+    return _edit_result(lambda: update_vehicle_details(serial, payload.make, payload.model, payload.year, payload.new_serial))
+
+
+@app.put("/api/vehicles/{serial}/history/{index}", tags=["Vehicles"])
+def edit_history_entry(serial: str, index: int, payload: HistoryEntryUpdate) -> dict[str, Any]:
+    """Replace one service-history entry; `expected` must match the entry currently at that index."""
+    if payload.service_date > date.today():
+        raise HTTPException(status_code=422, detail="Service date cannot be in the future.")
+    return _edit_result(lambda: update_history_entry(
+        serial, index, payload.expected.date, payload.expected.name,
+        payload.service_date.isoformat(), payload.name, payload.detail, payload.mileage,
+    ))
+
+
+@app.delete("/api/vehicles/{serial}/history/{index}", tags=["Vehicles"])
+def remove_history_entry(
+    serial: str, index: int,
+    expected_date: str = Query(alias="expectedDate", max_length=40),
+    expected_name: str = Query(alias="expectedName", max_length=120),
+) -> dict[str, Any]:
+    """Delete one service-history entry; the expected date and name must match."""
+    return _edit_result(lambda: delete_history_entry(serial, index, expected_date, expected_name))
+
+
+@app.post("/api/vehicles/{serial}/recommendations", tags=["Vehicles"], status_code=201)
+def add_vehicle_recommendation(serial: str, payload: RecommendationInput) -> dict[str, Any]:
+    """Add an advisor-entered recommendation (labelled Advisor-entered; never model-generated)."""
+    return _edit_result(lambda: add_recommendation(
+        serial, payload.name, payload.status, payload.text, payload.evidence, payload.rule, payload.safety,
+    ))
+
+
+@app.put("/api/vehicles/{serial}/recommendations/{index}", tags=["Vehicles"])
+def edit_vehicle_recommendation(serial: str, index: int, payload: RecommendationUpdate) -> dict[str, Any]:
+    """Edit one recommendation; `expectedName` must match the recommendation at that index."""
+    return _edit_result(lambda: update_recommendation(
+        serial, index, payload.expected_name, payload.name, payload.status, payload.text, payload.evidence,
+        payload.rule, payload.safety,
+    ))
+
+
+@app.delete("/api/vehicles/{serial}/recommendations/{index}", tags=["Vehicles"])
+def remove_vehicle_recommendation(
+    serial: str, index: int, expected_name: str = Query(alias="expectedName", max_length=120),
+) -> dict[str, Any]:
+    """Remove one recommendation; `expectedName` must match."""
+    return _edit_result(lambda: delete_recommendation(serial, index, expected_name))
 
 # MCP endpoint: http://127.0.0.1:8000/mcp
 app.mount("/mcp", mcp_http_app)

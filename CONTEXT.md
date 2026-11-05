@@ -19,7 +19,8 @@ The demo uses 1,000 fictional vehicle records. It is not a production maintenanc
 1. Enter a vehicle serial number in the web app, or open **Vehicle records** to browse and search all records and select one. Each record has an **✦ AI summary** with an exact "Needs now" list from the stored record plus short, unverified local-AI context.
 2. Review the matching synthetic vehicle, mileage, history, data timing, limitations, and separately labeled simulated telemetry trends.
 3. Review explicitly stored due or coming-up examples with their record evidence and demo rule.
-4. If current mileage is missing or needs correction, replace it with an advisor-confirmed reading, date, and source in the local synthetic record; mileage alone does not resolve missing history.
+4. Add a new vehicle from **Vehicle records** (or from a not-found lookup), and correct records in place: **Edit details**, edit or delete service-history entries, and add, edit, or remove recommendations (marked Advisor-entered). Every save is listed in the record's **Change log**.
+   If current mileage is missing or needs correction, replace it with an advisor-confirmed reading, date, and source in the local synthetic record; mileage alone does not resolve missing history.
    When a service is done (for example an oil change), use **✓ Mark as done** on its recommendation or **+ Record service** in Service history. The service is saved to the vehicle record in Supabase, the recommendation shows Completed, and a higher odometer reading updates current mileage.
 5. Prepare and edit customer explanations, quote text, follow-ups, or record/history request drafts. Template drafts appear instantly; **Generate with local AI** rewrites the active draft with a local Ollama model (no prices; never sent).
 6. Optionally request **AI suggestions** for extra items to check. Records with missing mileage, incomplete or conflicting data, or no history get a limitation message instead.

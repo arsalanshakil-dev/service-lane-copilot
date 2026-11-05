@@ -53,6 +53,7 @@ service-lane-copilot/
 │   ├── feature-spec-template.md      # Template for a new feature spec
 │   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits
 │   ├── feature-spec-record-service.md # Recording completed services and status updates
+│   ├── feature-spec-edit-vehicle-records.md # Adding vehicles and editing records with a change log
 │   ├── feature-spec-local-ai-assist.md # Local AI drafts and AI-suggested service items
 │   ├── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
 │   └── feature-spec-supabase-database.md # Supabase runtime store and seed behavior
@@ -64,6 +65,7 @@ service-lane-copilot/
 │   ├── mcp_stdio.py                  # Local stdio MCP launcher
 │   ├── tests/
 │   │   ├── test_ai_assist.py         # AI draft and suggestion validation checks
+│   │   ├── test_edit_records.py      # Add/edit record routes and change log checks
 │   │   ├── test_local_agent.py       # Local Ollama chat loop and error-mapping checks
 │   │   ├── test_mileage.py           # Mileage replacement and API regression checks
 │   │   ├── test_record_service.py    # Completed-service recording checks
@@ -71,6 +73,7 @@ service-lane-copilot/
 │   └── app/
 │       ├── main.py                   # REST, local chat, mileage, and HTTP MCP routes
 │       ├── ai_assist.py              # Local AI drafts and validated AI suggestions
+│       ├── record_edits.py           # Add vehicles; edit details, history, recommendations
 │       ├── local_agent.py            # Local Ollama and MCP tool orchestration
 │       ├── mcp_server.py             # Read-only MCP tools and resources
 │       └── data_store.py             # Supabase data access and mileage update
@@ -82,6 +85,7 @@ service-lane-copilot/
         ├── page.tsx                  # Main advisor screen
         ├── chat-panel.tsx             # Advisor chat using local Ollama and MCP
         ├── ai-model.ts               # App-wide AI model choice (Settings) shared by all AI features
+        ├── record-editors.tsx        # Add vehicle, edit details/history/recommendations, change log
         ├── layout.tsx                # App shell and metadata
         └── globals.css               # Global styles
 ```
@@ -100,6 +104,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `SERVICE_LANE_COPILOT_SPEC.md` | Product requirements, boundaries, acceptance criteria, and the verification plan. |
 | `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |
 | `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
+| `docs/feature-spec-edit-vehicle-records.md` | Adding vehicles and editing details, history, and recommendations; 404/409/422 rules and the change log. |
 | `docs/feature-spec-record-service.md` | Recording a completed service: history event, Completed status on a stored recommendation, odometer update, and limits. |
 | `README.md` | Setup instructions, architecture diagram, folder tree, file guide, endpoints, and sample serial numbers. |
 | `data/vehicles.json` | The 1,000 fictional seed records; loaded into Supabase by the seed command and never read at runtime. |
@@ -116,7 +121,9 @@ The tree shows the main source files and intentionally omits generated folders s
 | `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions. |
 | `backend/tests/test_synthetic_generator.py` | Generator checks: fixture matches the generator, consistent mileage and recommendations, even scenario mix, seed validation. |
 | `backend/tests/test_supabase_store.py` | Database adapter, fixture seed validation, and migration access checks. |
+| `backend/app/record_edits.py` | Add a vehicle, edit details (including serial rename), edit/delete history entries, add/edit/remove recommendations; each write is validated and logged. |
 | `backend/app/ai_assist.py` | Local Ollama customer drafts and AI suggestions; drops suggestions without cited history or with prices, intervals, or duplicates. |
+| `backend/tests/test_edit_records.py` | Add/edit routes: success, 404/409/422 without writes, newest-first history, serial rename, change log limit. |
 | `backend/tests/test_ai_assist.py` | AI draft and suggestion checks: validation rules, backend-built evidence, limited records, 404/503/504/502 mapping, and no writes. |
 | `backend/tests/test_ai_summary.py` | Records AI summary checks: backend-built "Needs now", limitation text, prices rejected, telemetry excluded, 404/503/504/502, no writes. |
 | `backend/tests/test_local_agent.py` | Local Ollama chat checks: `think: false` payload, grounded MCP tool round-trip, 503/504 error mapping, and the dealership-only topic guardrail. |
@@ -128,6 +135,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/.env.local.example` | Example backend URL setting for local development. |
 | `frontend/app/page.tsx` | Main advisor lookup and service-history screen, Vehicle records list (search and paging), Mark as done / Record service forms, template and local-AI customer drafts, AI suggestions section, and the local chat panel. |
 | `frontend/app/layout.tsx` | Shared page shell and document metadata. |
+| `frontend/app/record-editors.tsx` | Add vehicle form, Edit details, editable history rows, recommendation editor, and Change log panel. |
 | `frontend/app/ai-model.ts` | `useAiModel()` hook: installed local chat models and the app-wide model chosen in Settings (saved in the browser). |
 | `frontend/app/chat-panel.tsx` | In-app assistant conversation, local model selection, and MCP tool usage display. |
 | `frontend/app/icon.svg` | Service Lane Copilot favicon for browser tabs. |

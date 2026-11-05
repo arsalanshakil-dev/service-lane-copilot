@@ -3,8 +3,10 @@
 import { FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import ChatPanel from "./chat-panel";
 import { useAiModel } from "./ai-model";
+import { AddVehicleForm, ChangeLog, HistoryRows, VehicleDetailsForm, useRecommendationEditor, type ChangeLogEntry } from "./record-editors";
 
 type Recommendation = {
+  source?: string;
   name: string;
   status: string;
   kind: string;
@@ -15,6 +17,8 @@ type Recommendation = {
 };
 
 type HistoryEvent = {
+  source?: string;
+  edited?: boolean;
   date: string;
   name: string;
   detail: string;
@@ -39,6 +43,7 @@ type Vehicle = {
   obdTelemetry?: ObdTelemetry;
   incomplete?: boolean;
   conflicting?: boolean;
+  changeLog?: ChangeLogEntry[];
 };
 
 type DraftKind = "explanation" | "quote" | "followup";
@@ -139,6 +144,7 @@ function SettingsView() {
 }
 
 function RecordsView({ onOpen }: { onOpen: (serial: string) => void }) {
+  const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [offset, setOffset] = useState(0);
@@ -207,7 +213,8 @@ function RecordsView({ onOpen }: { onOpen: (serial: string) => void }) {
 
   return (
     <section className="records-view" aria-labelledby="records-title">
-      <div className="page-heading"><div><p className="eyebrow">VEHICLE RECORDS</p><h1 id="records-title">All vehicle records</h1><p className="page-subtitle">Browse or search every synthetic record. Select a vehicle to open it in the Service lane.</p></div></div>
+      <div className="page-heading"><div><p className="eyebrow">VEHICLE RECORDS</p><h1 id="records-title">All vehicle records</h1><p className="page-subtitle">Browse or search every synthetic record. Select a vehicle to open it in the Service lane.</p></div><button className="primary-button" type="button" onClick={() => setAdding(true)} disabled={adding}>+ Add vehicle</button></div>
+      {adding && <AddVehicleForm onCancel={() => setAdding(false)} onCreated={(created) => { setAdding(false); onOpen(created.serial); }} />}
       <div className="lookup-card">
         <form className="lookup-form" onSubmit={search} role="search">
           <label className="sr-only" htmlFor="records-search">Search by serial, make, model, or year</label>
@@ -426,6 +433,23 @@ export default function Home() {
   const currentSerial = useRef("");
 
 
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [addingMissing, setAddingMissing] = useState(false);
+
+  /** Show a record returned by any edit route and refresh everything derived from it. */
+  function applyVehicle(updated: Vehicle, message: string) {
+    currentSerial.current = updated.serial;
+    setSerial(updated.serial);
+    setVehicle(updated);
+    setMissingSerial(null);
+    setManualMileageOpen(updated.mileage == null);
+    setDraftText(draftFor(updated, activeDraft));
+    resetAiOutput();
+    notify(message);
+  }
+
+  const recEditor = useRecommendationEditor(vehicle, (updated) => applyVehicle(updated as Vehicle, "Recommendation saved to the vehicle record"));
+
   function openServiceForm(recommendationName: string | null) {
     if (!vehicle) return;
     setServiceForm({
@@ -450,6 +474,7 @@ export default function Home() {
         recommendationName: serviceForm.recommendationName,
       });
       setVehicle(updated);
+      setManualMileageOpen(updated.mileage == null);
       setDraftText(draftFor(updated, activeDraft));
       resetAiOutput();
       setServiceForm(null);
@@ -543,6 +568,9 @@ export default function Home() {
     setManualMileageSource("advisor_observed");
     setManualMileageOpen(false);
     setServiceForm(null);
+    setEditingDetails(false);
+    setAddingMissing(false);
+    recEditor.reset();
     try {
       const response = await fetch(`/api/copilot/vehicles/${encodeURIComponent(normalized)}`, {
         headers: { Accept: "application/json" },
@@ -654,13 +682,15 @@ export default function Home() {
 
         {vehicle && <div className="result-layout">
           <section className="vehicle-card">
-            <div className="vehicle-top"><div className="vehicle-ident"><div className="car-badge">▰</div><div><h2>{vehicle.year} {vehicle.make} {vehicle.model}</h2><p>Serial number {vehicle.serial}</p></div></div><span className={`record-pill ${incomplete ? "incomplete" : ""}`}>{vehicle.completeness}</span></div>
+            <div className="vehicle-top"><div className="vehicle-ident"><div className="car-badge">▰</div><div><h2>{vehicle.year} {vehicle.make} {vehicle.model}</h2><p>Serial number {vehicle.serial}</p></div></div><div className="vehicle-top-actions"><span className={`record-pill ${incomplete ? "incomplete" : ""}`}>{vehicle.completeness}</span><button className="copy-button" type="button" onClick={() => setEditingDetails(!editingDetails)} aria-expanded={editingDetails}>{editingDetails ? "Close" : "Edit details"}</button></div></div>
+            {editingDetails && <VehicleDetailsForm vehicle={vehicle} onCancel={() => setEditingDetails(false)} onSaved={(updated) => { setEditingDetails(false); applyVehicle(updated as Vehicle, "Vehicle details saved"); }} />}
             <div className="vehicle-meta"><div><div className="meta-label">CURRENT MILEAGE</div><div className="meta-value">{formatMiles(vehicle.mileage)}</div><div className="meta-sub">{vehicle.mileageDate}{vehicle.mileageSource ? ` · ${vehicle.mileageSource === "advisor_observed" ? "Advisor-observed" : "Customer-reported"}` : ""}</div>{vehicle.mileage != null && <button className="meta-action" type="button" aria-expanded={manualMileageOpen} onClick={() => setManualMileageOpen((open) => !open)}>{manualMileageOpen ? "Cancel update" : "Update mileage"}</button>}</div><div><div className="meta-label">HISTORY EVENTS</div><div className="meta-value">{vehicle.history.length} recorded</div><div className="meta-sub">Synthetic dealer record</div></div><div><div className="meta-label">RECORD STATUS</div><div className="meta-value">{incomplete ? "Needs attention" : "Ready to review"}</div><div className="meta-sub">Synthetic dataset</div></div></div>
             <TelemetryPanel telemetry={vehicle.obdTelemetry} />
             {(vehicle.mileage == null || manualMileageOpen) && <section className="manual-mileage" aria-labelledby="manual-mileage-title"><div><h3 id="manual-mileage-title">{vehicle.mileage == null ? "Enter current mileage" : "Replace current mileage"}</h3><p>{vehicle.mileage == null ? "No odometer reading is available. Record a manual reading for this synthetic vehicle." : "Enter an advisor-confirmed reading to replace the current synthetic mileage. The previous value is not retained."}</p></div><form className="manual-mileage-form" onSubmit={saveManualMileage}><label>Odometer miles<input type="number" min="0" step="1" inputMode="numeric" required value={manualMileage} onChange={(event) => setManualMileage(event.target.value)} placeholder="e.g. 48,120" /></label><label>Reading date<input type="date" required value={manualMileageDate} onChange={(event) => setManualMileageDate(event.target.value)} /></label><label>Reading source<select value={manualMileageSource} onChange={(event) => setManualMileageSource(event.target.value as "advisor_observed" | "customer_reported")}><option value="advisor_observed">Advisor-observed</option><option value="customer_reported">Customer-reported</option></select></label><button className="primary-button manual-mileage-submit" type="submit" disabled={savingMileage}>{savingMileage ? "Saving…" : "Save mileage"}</button></form><p className="manual-mileage-note">Saving replaces the current mileage field. Earlier mileage is not retained. Recommendations remain paused if service-history evidence is incomplete or conflicting.</p></section>}
             {incomplete && <><div className="warning-banner"><b>!</b><span>{vehicle.conflicting ? "Mileage conflict: a recorded service mileage is higher than the current odometer reading. Reconcile the records before using service timing." : vehicle.mileage != null && vehicle.completeness === "History incomplete" ? "Current mileage is recorded, but service history is incomplete or missing event mileage. Recommendations remain paused until the advisor can verify supporting history; do not infer a due service." : vehicle.mileage != null ? "The mileage record is old, so service timing cannot be confirmed. Ask the customer for the current odometer reading and verify the record." : "Mileage is missing and service history is incomplete. Do not infer a due service from this record. Get a current odometer reading and request the missing history."}</span></div><div className="path-grid record-paths"><article className="path-card"><h3>Update dealership service record</h3><p>Prepare an intake draft to confirm vehicle details, mileage, and missing service history.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for advisor review. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</>}
-            <div className="section-heading"><h3>{incomplete ? "Recommendations" : "Service recommendations"}</h3><span className="count-badge">{incomplete ? "Evidence needed" : `${vehicle.recs.length} items to review`}</span></div>
-            {incomplete ? <div className="evidence">{vehicle.mileage == null ? "Recommendations are paused until a current mileage reading and relevant service history are verified." : "Manual mileage is saved, but service-history evidence is still incomplete. Recommendations remain paused until the advisor can verify it."}</div> : vehicle.recs.length ? vehicle.recs.map((rec, index) => <div key={`${rec.name}-${index}`}><RecommendationCard rec={rec} onComplete={rec.kind === "done" ? undefined : () => openServiceForm(rec.name)} />{serviceForm?.recommendationName === rec.name && <ServiceForm form={serviceForm} saving={savingService} onChange={setServiceForm} onSubmit={saveService} onCancel={() => setServiceForm(null)} />}</div>) : <div className="evidence">No items match the configured demo rules. This does not replace review against an approved maintenance schedule.</div>}
+            <div className="section-heading"><h3>{incomplete ? "Recommendations" : "Service recommendations"}</h3><span className="history-actions"><span className="count-badge">{incomplete ? "Evidence needed" : `${vehicle.recs.length} ${vehicle.recs.length === 1 ? "item" : "items"} to review`}</span>{!incomplete && <button className="copy-button" type="button" onClick={recEditor.startAdd}>+ Add recommendation</button>}</span></div>
+            {!incomplete && recEditor.addForm()}
+            {incomplete ? <div className="evidence">{vehicle.mileage == null ? "Recommendations are paused until a current mileage reading and relevant service history are verified." : "Manual mileage is saved, but service-history evidence is still incomplete. Recommendations remain paused until the advisor can verify it."}</div> : vehicle.recs.length ? vehicle.recs.map((rec, index) => <div key={`${rec.name}-${index}`}><RecommendationCard rec={rec} onComplete={rec.kind === "done" ? undefined : () => openServiceForm(rec.name)} onEdit={() => recEditor.startEdit(index)} onRemove={() => recEditor.startRemove(index)} />{recEditor.editorFor(index)}{serviceForm?.recommendationName === rec.name && <ServiceForm form={serviceForm} saving={savingService} onChange={setServiceForm} onSubmit={saveService} onCancel={() => setServiceForm(null)} />}</div>) : <div className="evidence">No items match the configured demo rules. This does not replace review against an approved maintenance schedule.</div>}
             <AiSuggestionsSection
               result={aiSuggestions}
               busy={aiSuggestBusy}
@@ -669,12 +699,12 @@ export default function Home() {
               modelsError={aiModelsError}
               onSuggest={() => void suggestWithAi()}
             />
-            <div className="history-list"><div className="section-heading"><h3>Service history</h3><span className="history-actions"><span className="count-badge">{vehicle.history.length} events</span><button className="copy-button" type="button" onClick={() => openServiceForm(null)} disabled={savingService}>+ Record service</button></span></div>{serviceForm && serviceForm.recommendationName === null && <ServiceForm form={serviceForm} saving={savingService} onChange={setServiceForm} onSubmit={saveService} onCancel={() => setServiceForm(null)} />}{vehicle.history.map((event, index) => <div className="history-row" key={`${event.name}-${index}`}><span className="history-date">{event.date}</span><span className="history-name">{event.name}<span className="history-detail">{event.detail}</span></span><span className="history-mileage">{event.mileage}</span></div>)}</div>
+            <div className="history-list"><div className="section-heading"><h3>Service history</h3><span className="history-actions"><span className="count-badge">{vehicle.history.length} events</span><button className="copy-button" type="button" onClick={() => openServiceForm(null)} disabled={savingService}>+ Record service</button></span></div>{serviceForm && serviceForm.recommendationName === null && <ServiceForm form={serviceForm} saving={savingService} onChange={setServiceForm} onSubmit={saveService} onCancel={() => setServiceForm(null)} />}<HistoryRows vehicle={vehicle} onSaved={(updated) => applyVehicle(updated as Vehicle, "History saved to the vehicle record")} /></div>
           </section>
-          <aside className="side-column"><section className="panel"><div className="panel-title-row"><div><h3>Customer drafts</h3><div className="panel-subtitle">Editable · Nothing is sent</div></div><span className="draft-type">FOR REVIEW</span></div><div className="draft-tabs" role="tablist" aria-label="Customer draft type">{(["explanation", "quote", "followup"] as DraftKind[]).map((kind) => <button key={kind} className={`draft-tab ${activeDraft === kind ? "active" : ""}`} role="tab" aria-selected={activeDraft === kind} type="button" onClick={() => chooseDraft(kind)}>{kind === "followup" ? "Follow-up" : kind[0].toUpperCase() + kind.slice(1)}</button>)}</div><div className="ai-draft-row"><span className="ai-model-note">Model: <strong>{aiModel || (aiModelLoading ? "loading…" : "none")}</strong> · <a href="#settings">Settings</a></span><button className="copy-button ai-button" type="button" onClick={() => void generateAiDraft()} disabled={!aiModel || aiDraftBusy}>{aiDraftBusy ? "Writing… (can take a few minutes)" : "✦ Generate with local AI"}</button></div>{(aiDraftError || aiModelsError) && <p className="ai-error" role="alert">{aiDraftError || aiModelsError} The template draft is still available.</p>}<textarea className="draft-editor" aria-label="Editable customer draft" aria-busy={aiDraftBusy} value={draftText} onChange={(event) => setDraftText(event.target.value)} /><div className="draft-actions"><span className="draft-status">{aiDraftModel ? `Written by local AI (${aiDraftModel}) · review before sharing` : "Template draft · Review details before sharing"}</span><button className="copy-button" type="button" onClick={() => void copyDraft()}>Copy draft</button></div><p className="disclaimer">Draft text is based only on the synthetic record and demo rules. Check all details and pricing before use.</p></section><section className="panel"><div className="panel-title-row"><div><h3>Record details</h3><div className="panel-subtitle">From synthetic dealership history</div></div><span className="draft-type">DEMO</span></div><div className="evidence"><strong>Lookup key</strong><br />Synthetic vehicle serial: {vehicle.serial}</div><div className="evidence" style={{ marginTop: 8 }}><strong>Planned vehicle source</strong><br />OBD-II/CAN may provide a VIN; make, model, and year can be decoded from it. Odometer support varies by vehicle and adapter. This demo uses synthetic data; service history remains separate.</div><p className="disclaimer">No physical vehicle or dealership system is connected.</p></section></aside>
+          <aside className="side-column"><section className="panel"><div className="panel-title-row"><div><h3>Customer drafts</h3><div className="panel-subtitle">Editable · Nothing is sent</div></div><span className="draft-type">FOR REVIEW</span></div><div className="draft-tabs" role="tablist" aria-label="Customer draft type">{(["explanation", "quote", "followup"] as DraftKind[]).map((kind) => <button key={kind} className={`draft-tab ${activeDraft === kind ? "active" : ""}`} role="tab" aria-selected={activeDraft === kind} type="button" onClick={() => chooseDraft(kind)}>{kind === "followup" ? "Follow-up" : kind[0].toUpperCase() + kind.slice(1)}</button>)}</div><div className="ai-draft-row"><span className="ai-model-note">Model: <strong>{aiModel || (aiModelLoading ? "loading…" : "none")}</strong> · <a href="#settings">Settings</a></span><button className="copy-button ai-button" type="button" onClick={() => void generateAiDraft()} disabled={!aiModel || aiDraftBusy}>{aiDraftBusy ? "Writing… (can take a few minutes)" : "✦ Generate with local AI"}</button></div>{(aiDraftError || aiModelsError) && <p className="ai-error" role="alert">{aiDraftError || aiModelsError} The template draft is still available.</p>}<textarea className="draft-editor" aria-label="Editable customer draft" aria-busy={aiDraftBusy} value={draftText} onChange={(event) => setDraftText(event.target.value)} /><div className="draft-actions"><span className="draft-status">{aiDraftModel ? `Written by local AI (${aiDraftModel}) · review before sharing` : "Template draft · Review details before sharing"}</span><button className="copy-button" type="button" onClick={() => void copyDraft()}>Copy draft</button></div><p className="disclaimer">Draft text is based only on the synthetic record and demo rules. Check all details and pricing before use.</p></section><section className="panel"><div className="panel-title-row"><div><h3>Record details</h3><div className="panel-subtitle">From synthetic dealership history</div></div><span className="draft-type">DEMO</span></div><div className="evidence"><strong>Lookup key</strong><br />Synthetic vehicle serial: {vehicle.serial}</div><div className="evidence" style={{ marginTop: 8 }}><strong>Planned vehicle source</strong><br />OBD-II/CAN may provide a VIN; make, model, and year can be decoded from it. Odometer support varies by vehicle and adapter. This demo uses synthetic data; service history remains separate.</div><p className="disclaimer">No physical vehicle or dealership system is connected.</p></section><ChangeLog entries={vehicle.changeLog} /></aside>
         </div>}
 
-        {missingSerial && <section className="empty-result"><div className="empty-icon">⌕</div><h2>No demo record found for {missingSerial}</h2><p>This serial number is not in the synthetic dealership dataset. Check the number, register the vehicle in dealership service records, or request service history from another dealership. The requests below are drafts for the advisor to review.</p><div className="path-grid"><article className="path-card"><h3>Add to dealership service records</h3><p>Prepare a draft intake request. Confirm vehicle details and customer authorization through dealership procedures.</p><button type="button" onClick={() => setRecordDraft(missingRecordDraft(missingSerial, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for the customer or advisor to use with another dealership. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(missingRecordDraft(missingSerial, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</section>}
+        {missingSerial && <section className="empty-result"><div className="empty-icon">⌕</div><h2>No demo record found for {missingSerial}</h2>{addingMissing ? <AddVehicleForm initialSerial={missingSerial} onCancel={() => setAddingMissing(false)} onCreated={(created) => { setAddingMissing(false); applyVehicle(created as Vehicle, "Vehicle added to the records"); }} /> : <div className="add-missing"><button className="primary-button" type="button" onClick={() => setAddingMissing(true)}>+ Add this vehicle</button><span>Create a new synthetic record for {missingSerial} now.</span></div>}<p>This serial number is not in the synthetic dealership dataset. Check the number, register the vehicle in dealership service records, or request service history from another dealership. The requests below are drafts for the advisor to review.</p><div className="path-grid"><article className="path-card"><h3>Add to dealership service records</h3><p>Prepare a draft intake request. Confirm vehicle details and customer authorization through dealership procedures.</p><button type="button" onClick={() => setRecordDraft(missingRecordDraft(missingSerial, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for the customer or advisor to use with another dealership. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(missingRecordDraft(missingSerial, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</section>}
 
         </>)}
 
@@ -701,10 +731,10 @@ function AiSuggestionsSection({ result, busy, error, model, modelsError, onSugge
   );
 }
 
-function RecommendationCard({ rec, onComplete }: { rec: Recommendation; onComplete?: () => void }) {
+function RecommendationCard({ rec, onComplete, onEdit, onRemove }: { rec: Recommendation; onComplete?: () => void; onEdit?: () => void; onRemove?: () => void }) {
   const done = rec.kind === "done";
   const kind = done ? "done" : rec.kind === "safety" ? "safety" : rec.status === "Not yet due" ? "neutral" : rec.kind;
-  return <article className={`recommendation ${done ? "completed" : ""}`}><div className="rec-top"><span className="rec-title">{done && <span aria-hidden="true">✓ </span>}{rec.name}</span><span className={`status ${kind}`}>{rec.status}</span></div><p className="rec-copy">{rec.text}</p><div className="evidence"><strong>{done ? "Completion record" : "Why it appears"}</strong><br />{rec.evidence}</div><p className="source-note">{rec.rule}</p>{rec.safety && !done && <div className="warning-banner"><b>!</b><span>Safety-related: verify against an approved source before discussing or recommending work.</span></div>}{onComplete && <div className="rec-actions"><button className="copy-button" type="button" onClick={onComplete}>✓ Mark as done</button></div>}</article>;
+  return <article className={`recommendation ${done ? "completed" : ""}`}><div className="rec-top"><span className="rec-title">{done && <span aria-hidden="true">✓ </span>}{rec.name}{rec.source === "advisor_entered" && <span className="edited-tag">Advisor-entered</span>}</span><span className={`status ${kind}`}>{rec.status}</span></div><p className="rec-copy">{rec.text}</p><div className="evidence"><strong>{done ? "Completion record" : "Why it appears"}</strong><br />{rec.evidence}</div><p className="source-note">{rec.rule}</p>{rec.safety && !done && <div className="warning-banner"><b>!</b><span>Safety-related: verify against an approved source before discussing or recommending work.</span></div>}{(onComplete || onEdit || onRemove) && <div className="rec-actions">{onEdit && <button className="link-button" type="button" onClick={onEdit}>Edit</button>}{onRemove && <button className="link-button danger" type="button" onClick={onRemove}>Remove</button>}{onComplete && <button className="copy-button" type="button" onClick={onComplete}>✓ Mark as done</button>}</div>}</article>;
 }
 
 function ServiceForm({ form, saving, onChange, onSubmit, onCancel }: { form: ServiceFormState; saving: boolean; onChange: (form: ServiceFormState) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onCancel: () => void }) {
