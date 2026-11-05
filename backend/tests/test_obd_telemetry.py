@@ -9,6 +9,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app import data_store
+from app.main import capabilities, get_vehicle
+from fastapi import HTTPException
 
 EXPECTED_STREAMS = {
     "engine_rpm": ("Engine RPM", "rpm", 0, 3600),
@@ -63,6 +65,18 @@ class SimulatedObdTelemetryTests(unittest.TestCase):
 
     def test_unknown_serial_has_no_telemetry(self) -> None:
         self.assertIsNone(data_store.find_vehicle("UNKNOWN-OBD"))
+
+    def test_vehicle_api_returns_telemetry_and_unknown_serial_is_404(self) -> None:
+        known = get_vehicle("NS-2048")
+        self.assertEqual(known["obdTelemetry"]["status"], "simulated")
+        self.assertEqual(len(known["obdTelemetry"]["streams"]), 4)
+        with self.assertRaises(HTTPException) as raised:
+            get_vehicle("UNKNOWN-OBD")
+        self.assertEqual(raised.exception.status_code, 404)
+
+    def test_backend_capabilities_document_simulated_record_data(self) -> None:
+        data_fields = capabilities()["rest"]["vehicle_record_data"]
+        self.assertIn("simulated OBD telemetry", data_fields)
 
     def test_manual_mileage_replacement_preserves_telemetry_and_service_evidence(self) -> None:
         original = copy.deepcopy(self.vehicles["NS-2048"])
