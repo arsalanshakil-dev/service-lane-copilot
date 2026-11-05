@@ -2,7 +2,7 @@
 
 For a quick project overview, see [`CONTEXT.md`](CONTEXT.md). Product requirements and acceptance criteria are maintained in [`SERVICE_LANE_COPILOT_SPEC.md`](SERVICE_LANE_COPILOT_SPEC.md).
 
-Service Lane Copilot is a synthetic-data demo for dealership service advisors. The project uses a **Next.js + React + TypeScript frontend** and a **Python FastAPI backend**. The Python backend reads and updates synthetic vehicle records in **Supabase Postgres** and exposes them through a **Model Context Protocol (MCP)** server and REST API for MCP-compatible agent harnesses and the web UI. The 250-record `data/vehicles.json` file is a seed fixture, not a runtime fallback. MCP remains read-only; the local REST mileage endpoint is the sole write path.
+Service Lane Copilot is a synthetic-data demo for dealership service advisors. The project uses a **Next.js + React + TypeScript frontend** and a **Python FastAPI backend**. The Python backend reads and updates synthetic vehicle records in **Supabase Postgres** and exposes them through a **Model Context Protocol (MCP)** server and REST API for MCP-compatible agent harnesses and the web UI. The 250-record `data/vehicles.json` file is a seed fixture, not a runtime fallback. MCP remains read-only; the local REST mileage and completed-service endpoints are the only write paths.
 
 All vehicle details, service events, mileage, recommendations, and maintenance thresholds are fictional demo content. Do not use the demo rules to make real maintenance decisions. No real dealership systems, customers, or outside history services are connected.
 
@@ -52,6 +52,7 @@ service-lane-copilot/
 ├── docs/
 │   ├── feature-spec-template.md      # Template for a new feature spec
 │   ├── feature-spec-manual-mileage.md # Mileage replacement scope and evidence limits
+│   ├── feature-spec-record-service.md # Recording completed services and status updates
 │   ├── feature-spec-local-ai-assist.md # Local AI drafts and AI-suggested service items
 │   ├── feature-spec-local-ollama-chat.md # Local chat requirements and boundaries
 │   └── feature-spec-supabase-database.md # Supabase runtime store and seed behavior
@@ -64,6 +65,7 @@ service-lane-copilot/
 │   │   ├── test_ai_assist.py         # AI draft and suggestion validation checks
 │   │   ├── test_local_agent.py       # Local Ollama chat loop and error-mapping checks
 │   │   ├── test_mileage.py           # Mileage replacement and API regression checks
+│   │   ├── test_record_service.py    # Completed-service recording checks
 │   │   └── test_supabase_store.py    # Supabase adapter, seed, and migration checks
 │   └── app/
 │       ├── main.py                   # REST, local chat, mileage, and HTTP MCP routes
@@ -96,6 +98,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `SERVICE_LANE_COPILOT_SPEC.md` | Product requirements, boundaries, acceptance criteria, and the verification plan. |
 | `docs/feature-spec-local-ollama-chat.md` | In-app assistant behavior, local-only model policy, and MCP capability access. |
 | `docs/feature-spec-manual-mileage.md` | Advisor-approved mileage replacement, provenance, and history evidence limits. |
+| `docs/feature-spec-record-service.md` | Recording a completed service: history event, Completed status on a stored recommendation, odometer update, and limits. |
 | `README.md` | Setup instructions, architecture diagram, folder tree, file guide, endpoints, and sample serial numbers. |
 | `data/vehicles.json` | The 250 fictional seed records; loaded into Supabase by the seed command and never read at runtime. |
 | `supabase/config.toml` and `supabase/migrations/` | Local Supabase configuration and private vehicle table schema with row-level security. |
@@ -113,11 +116,12 @@ The tree shows the main source files and intentionally omits generated folders s
 | `backend/tests/test_ai_assist.py` | AI draft and suggestion checks: validation rules, backend-built evidence, limited records, 404/503/504/502 mapping, and no writes. |
 | `backend/tests/test_local_agent.py` | Local Ollama chat checks: `think: false` payload, grounded MCP tool round-trip, 503/504 error mapping, and the dealership-only topic guardrail. |
 | `backend/tests/test_mileage.py` | Standard-library regression checks for replacement, provenance, conflict, and API validation. |
+| `backend/tests/test_record_service.py` | Completed-service checks: persistence, newest-first history, Completed status, odometer rules, 404/422 without writes, and no MCP write tool. |
 | `frontend/package.json` | Frontend scripts and pinned direct dependencies. |
 | `frontend/package-lock.json` | Exact resolved frontend dependency versions for repeatable npm installs. |
 | `frontend/next.config.ts` | Rewrite from browser `/api/copilot/*` requests to the local FastAPI `/api/*` routes. |
 | `frontend/.env.local.example` | Example backend URL setting for local development. |
-| `frontend/app/page.tsx` | Main advisor lookup and service-history screen, template and local-AI customer drafts, AI suggestions section, and the local chat panel. |
+| `frontend/app/page.tsx` | Main advisor lookup and service-history screen, Mark as done / Record service forms, template and local-AI customer drafts, AI suggestions section, and the local chat panel. |
 | `frontend/app/layout.tsx` | Shared page shell and document metadata. |
 | `frontend/app/chat-panel.tsx` | In-app assistant conversation, local model selection, and MCP tool usage display. |
 | `frontend/app/icon.svg` | Service Lane Copilot favicon for browser tabs. |
@@ -214,7 +218,7 @@ The exact configuration-file format differs by harness. Replace `<project>` with
 
 All MCP tools are read-only. Draft tools return `sent: false` and do not contact a customer, dealership, vehicle, or external service. The MCP endpoint binds to localhost with the dev server. Do not expose it to a network or public hostname without adding authentication and deployment security controls.
 
-Run backend regression checks from `backend/` with `python -m unittest discover -s tests -v`. The local mileage update is the only REST operation that changes synthetic records in Supabase.\n\nDirect runtime versions are pinned in `frontend/package.json` and `backend/requirements.txt`. The frontend requires Node.js 20.9 or newer.
+Run backend regression checks from `backend/` with `python -m unittest discover -s tests -v`. The local mileage update and completed-service recording are the only REST operations that change synthetic records in Supabase.\n\nDirect runtime versions are pinned in `frontend/package.json` and `backend/requirements.txt`. The frontend requires Node.js 20.9 or newer.
 
 ## Sample serial numbers
 

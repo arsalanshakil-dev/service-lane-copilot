@@ -13,14 +13,14 @@ This MVP uses synthetic vehicles, service histories, and clearly labeled example
 - **Backend docs:** Swagger UI at `/docs`, OpenAPI JSON at `/openapi.json`, and interface summary at `/api/capabilities`.
 - **Runtime database:** Supabase Postgres, accessed only by the Python backend. `data/vehicles.json` is the checked-in synthetic seed fixture, not a runtime fallback.
 - **Synthetic seed:** 250 synthetic vehicle records can be loaded with the idempotent backend seed command.
-- **Manual mileage:** advisor-reviewed `PATCH /api/vehicles/{serial}/mileage` replaces the current value in the synthetic record stored in Supabase; this is the only REST write route, and MCP remains read-only.
+- **Manual mileage:** advisor-reviewed `PATCH /api/vehicles/{serial}/mileage` replaces the current value in the synthetic record stored in Supabase. **Completed services:** advisor-reviewed `POST /api/vehicles/{serial}/services` records a completed service (history event, optional Completed status on a stored recommendation, and a higher odometer reading). These are the only two REST write routes, and MCP remains read-only.
 - **API connection:** Next.js rewrites `/api/copilot/*` to the local FastAPI service, avoiding a separate browser CORS configuration for the demo. In development, allow both `localhost` and `127.0.0.1` so Next.js client assets and HMR work from either loopback address. Set the rewrite proxy timeout (`experimental.proxyTimeout`) to 1,800,000 ms so local Ollama requests are not cut off by the 30-second default.
 - **Agent connection:** MCP Streamable HTTP at `/mcp` and stdio for local subprocess-based agent harnesses.
 - **Local runtime:** Node.js 20.9+ and Python 3.11+.
 
 ## MCP interface
 
-Expose the synthetic records to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the Supabase-backed vehicle store with REST. MCP remains read-only; the REST API has one advisor-reviewed synthetic mileage write route.
+Expose the synthetic records to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the Supabase-backed vehicle store with REST. MCP remains read-only; the REST API has two advisor-reviewed synthetic write routes (mileage replacement and completed-service recording).
 
 - Tools: search records, get one vehicle record, prepare customer drafts, prepare record-intake/outside-history drafts, and summarize the dataset.
 - Resources: a demo safety guide and individual synthetic vehicle records.
@@ -124,6 +124,13 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Records with missing mileage, incomplete or conflicting data, or no history return no AI suggestions and a limitation.
 - See `docs/feature-spec-local-ai-assist.md`.
 
+### Recording completed services
+
+- When a service is done, the advisor records it with **✓ Mark as done** on a stored recommendation or **+ Record service** in Service history (service name, date not in the future, optional odometer, optional note).
+- `POST /api/vehicles/{serial}/services` saves it to the Supabase record: a newest-first history event marked `advisor_recorded`, the matching recommendation set to **Completed** with completion evidence, and current mileage raised only when the service odometer is higher.
+- No next-due interval is calculated; MCP and chat stay read-only. Unknown serial → 404; invalid input or an unknown recommendation → 422 with no write.
+- See `docs/feature-spec-record-service.md`.
+
 ### Drafts and approvals
 
 - Customer explanations, quote text, follow-ups, vehicle-registration requests, and external-history requests are drafts only.
@@ -204,7 +211,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - [x] **Set MVP acceptance checks.** The nine repeatable behavior checks are listed in the verification plan. Their execution is still needed before claiming the checks passed.
 - [x] **Choose implementation stack and local run instructions.** Use a Python FastAPI backend and a React/Next.js App Router frontend with TypeScript. Expose read-only MCP tools over Streamable HTTP and stdio. Run the two local development servers using the root README instructions.
 
-**Demo release scope:** approved as a synthetic-data demonstration. It is a local, non-production prototype with a Python REST backend whose only write operation is the advisor-reviewed synthetic mileage update, a read-only MCP server, and a Next.js frontend. It has no external integrations, real customer data, or live dealership actions. The dataset contains 250 records total; generated profiles use fictional makes/models and repeatable example scenarios.
+**Demo release scope:** approved as a synthetic-data demonstration. It is a local, non-production prototype with a Python REST backend whose only write operations are the advisor-reviewed synthetic mileage update and completed-service recording, a read-only MCP server, and a Next.js frontend. It has no external integrations, real customer data, or live dealership actions. The dataset contains 250 records total; generated profiles use fictional makes/models and repeatable example scenarios.
 
 ### Needed before a real dealership pilot
 

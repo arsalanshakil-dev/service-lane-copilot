@@ -90,3 +90,24 @@ html[data-theme="dark"] .ai-draft-row select{background:#202c26;border-color:#34
 html[data-theme="dark"] .ai-suggestions{border-top-color:#34453a}
 html[data-theme="dark"] .ai-tag,html[data-theme="dark"] .status.ai{background:#2a2f4d;color:#c4c9f5}
 html[data-theme="dark"] .ai-error{background:#3a2422;color:#f0b8b0}
+
+/* Record completed services (issue #28) */
+.status.done{background:var(--green-pale);color:var(--green-dark)}
+.recommendation.completed{background:#fafcfb}
+.rec-actions{display:flex;justify-content:flex-end;margin-top:8px}
+.history-actions{display:flex;align-items:center;gap:8px}
+.service-form{border:1px solid #d9e6df;background:#f7fbf9;border-radius:8px;padding:12px;margin:8px 0}
+.service-form h4{font:700 11px Manrope,sans-serif;margin:0 0 9px}
+.service-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.service-form label{display:flex;flex-direction:column;gap:4px;font-size:9px;font-weight:700;color:#5d6a63}
+.service-form input{height:32px;border:1px solid #dfe4e1;border-radius:6px;padding:0 9px;font-size:11px;color:#343e3a;background:#fff}
+.service-form input:focus{outline:none;border-color:#65a88d;box-shadow:0 0 0 3px #eaf4ef}
+.service-form-note{grid-column:1/-1}
+.service-form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.service-form-actions .primary-button{height:32px}
+html[data-theme="dark"] .service-form{background:#18221d;border-color:#34453a}
+html[data-theme="dark"] .service-form h4{color:#e7eeea}
+html[data-theme="dark"] .service-form label{color:#a6b2ab}
+html[data-theme="dark"] .service-form input{background:#202c26;border-color:#34453a;color:#d8e3dd}
+html[data-theme="dark"] .recommendation.completed{background:#17201b}
+html[data-theme="dark"] .status.done{background:#1f3a2e;color:#a8dcc0}
