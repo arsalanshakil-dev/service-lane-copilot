@@ -202,15 +202,15 @@ SUGGESTION_SYSTEM_PROMPT = (
 )
 
 
-def _limitation(vehicle: dict[str, Any]) -> str | None:
+def _limitation(vehicle: dict[str, Any], purpose: str = "requesting AI suggestions") -> str | None:
     if not vehicle.get("history"):
-        return "No service history is recorded, so AI suggestions cannot cite evidence."
+        return "No service history is recorded, so AI output cannot cite evidence."
     if vehicle.get("mileage") is None:
-        return "Recorded mileage is missing. Verify mileage before requesting AI suggestions."
+        return f"Recorded mileage is missing. Verify mileage before {purpose}."
     if vehicle.get("conflicting"):
-        return "Recorded mileage conflicts with service history. Resolve the conflict before requesting AI suggestions."
+        return f"Recorded mileage conflicts with service history. Resolve the conflict before {purpose}."
     if vehicle.get("incomplete"):
-        return "The record is incomplete. Verify mileage and service history before requesting AI suggestions."
+        return f"The record is incomplete. Verify mileage and service history before {purpose}."
     return None
 
 
@@ -368,3 +368,62 @@ async def generate_ai_suggestions(model: str, vehicle: dict[str, Any]) -> dict[s
         raise OllamaRequestError("The local model returned suggestions that were not valid JSON. Try again.") from exc
     suggestions, dropped = validate_suggestions(raw, vehicle, model)
     return {**base, "suggestions": suggestions, "dropped": dropped, "limitation": None}
+
+
+# ---- Per-vehicle AI summary for the Vehicle records view (issue #38) ----
+
+SUMMARY_OPEN_STATUSES = ("Due", "Coming up", "Advisor verification")
+
+SUMMARY_SYSTEM_PROMPT = (
+    "You add context to a dealership service advisor's quick overview of one vehicle record. What the car "
+    "needs now is already shown to the advisor from the stored recommendations, so do NOT restate due, "
+    "coming-up, or advisor-verification items, their mileage, or their rules. Write 2 or 3 short bullet "
+    "points, each starting with '- ', about: notable recent services in the history (with dates), "
+    "safety-related items the advisor should verify, and any data limitation (start with it if there is "
+    "one and say the advisor must verify before relying on the overview). Use only the record facts given. "
+    "Never state prices or costs, maintenance intervals, or diagnoses, and do not mention simulated "
+    "telemetry. Return only the bullet points."
+)
+
+
+def _needs_now(vehicle: dict[str, Any]) -> list[str]:
+    """Backend-built, exact 'needs now' lines from stored recommendations (never model text)."""
+    lines = [
+        f"{rec.get('name')}: {rec.get('status')} — {rec.get('evidence')}"
+        for rec in vehicle.get("recs") or []
+        if rec.get("status") in SUMMARY_OPEN_STATUSES
+    ]
+    return lines or ["No stored recommendation is Due, Coming up, or awaiting advisor verification."]
+
+
+def _open_items(vehicle: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {"name": rec.get("name"), "status": rec.get("status"), "safety": bool(rec.get("safety"))}
+        for rec in vehicle.get("recs") or []
+        if rec.get("status") in SUMMARY_OPEN_STATUSES
+    ]
+
+
+async def generate_ai_summary(model: str, vehicle: dict[str, Any]) -> dict[str, Any]:
+    """Summarize what one vehicle needs, from the stored record only. Nothing is written."""
+    await _ensure_installed(model)
+    limitation = _limitation(vehicle, purpose="relying on this summary")
+    user_prompt = _record_facts(vehicle)
+    if limitation:
+        user_prompt += f"\nData limitation: {limitation}"
+    text = await _chat_once(model, SUMMARY_SYSTEM_PROMPT, user_prompt)
+    if PRICE_PATTERN.search(text):
+        raise OllamaRequestError(
+            "The local model's summary included a price, which this demo does not allow. Try again."
+        )
+    return {
+        "serial": vehicle["serial"],
+        "model": model,
+        "needs_now": _needs_now(vehicle),
+        "summary": text,
+        "open_items": _open_items(vehicle),
+        "limitation": limitation,
+        "source": "local_ollama",
+        "synthetic_data": True,
+        "persisted": False,
+    }

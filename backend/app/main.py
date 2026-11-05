@@ -19,7 +19,7 @@ from .data_store import (
     update_vehicle_mileage,
 )
 from .mcp_server import mcp_server, mcp_http_app
-from .ai_assist import generate_ai_draft, generate_ai_suggestions
+from .ai_assist import generate_ai_draft, generate_ai_summary, generate_ai_suggestions
 from .local_agent import (
     OllamaRequestError,
     OllamaTimeoutError,
@@ -157,6 +157,7 @@ def capabilities() -> dict[str, Any]:
             "local_mcp_chat": "POST /api/chat",
             "local_ai_draft": "POST /api/vehicles/{serial}/ai-draft",
             "local_ai_suggestions": "POST /api/vehicles/{serial}/ai-suggestions",
+            "local_ai_summary": "POST /api/vehicles/{serial}/ai-summary",
         },
         "mcp": {
             "streamable_http": "/mcp",
@@ -269,6 +270,16 @@ async def ai_service_suggestions(serial: str, payload: AiSuggestionsRequest) -> 
     vehicle = await _known_vehicle(serial)
     try:
         return await generate_ai_suggestions(payload.model, vehicle)
+    except (OllamaUnavailableError, OllamaRequestError) as exc:
+        raise _ollama_http_error(exc) from exc
+
+
+@app.post("/api/vehicles/{serial}/ai-summary", tags=["Vehicles"])
+async def ai_vehicle_summary(serial: str, payload: AiSuggestionsRequest) -> dict[str, Any]:
+    """Quick local-AI overview of what one vehicle needs, from its stored record. Nothing is stored."""
+    vehicle = await _known_vehicle(serial)
+    try:
+        return await generate_ai_summary(payload.model, vehicle)
     except (OllamaUnavailableError, OllamaRequestError) as exc:
         raise _ollama_http_error(exc) from exc
 

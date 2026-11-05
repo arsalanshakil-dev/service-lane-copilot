@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import ChatPanel from "./chat-panel";
 
 type Recommendation = {
@@ -75,6 +75,36 @@ type RecordSummary = {
 
 type RecordsPage = { total: number; count: number; limit: number; offset: number; vehicles: RecordSummary[] };
 
+type AiSummaryResult = {
+  serial: string;
+  model: string;
+  needs_now: string[];
+  summary: string;
+  open_items: { name: string; status: string; safety: boolean }[];
+  limitation: string | null;
+};
+
+type SummaryState = { status: "loading" | "done" | "error"; data?: AiSummaryResult; error?: string };
+
+function VehicleSummaryPanel({ serial, state, onOpen, onRetry }: { serial: string; state?: SummaryState; onOpen: () => void; onRetry: () => void }) {
+  return (
+    <div className="summary-panel" aria-live="polite" aria-busy={state?.status === "loading"}>
+      <div className="summary-head"><strong>AI summary · {serial}</strong><span className="ai-tag">Unverified</span></div>
+      {(!state || state.status === "loading") && <p className="summary-muted">Summarizing this record with your local model… this can take about a minute.</p>}
+      {state?.status === "error" && <><p className="ai-error" role="alert">{state.error}</p><button className="copy-button" type="button" onClick={onRetry}>Try again</button></>}
+      {state?.status === "done" && state.data && (
+        <>
+          {state.data.limitation && <div className="warning-banner"><b>!</b><span>{state.data.limitation}</span></div>}
+          <div className="summary-block"><h4>Needs now <small>from the stored record</small></h4><ul className="summary-points">{state.data.needs_now.map((line) => <li key={line}>{line}</li>)}</ul></div>
+          <div className="summary-block"><h4>AI context <small>local model {state.data.model} · unverified</small></h4><ul className="summary-points">{state.data.summary.split("\n").map((line) => line.replace(/^\s*[-*•]\s*/, "").trim()).filter(Boolean).map((line, index) => <li key={index}>{line}</li>)}</ul></div>
+          <p className="source-note">“Needs now” is copied exactly from the stored recommendations. The AI context is written from the stored record only; verify it before discussing with the customer. Nothing is saved.</p>
+        </>
+      )}
+      <div className="summary-actions"><button className="primary-button" type="button" onClick={onOpen}>Open record →</button></div>
+    </div>
+  );
+}
+
 const RECORDS_PAGE_SIZE = 25;
 
 function RecordsView({ onOpen }: { onOpen: (serial: string) => void }) {
@@ -84,6 +114,40 @@ function RecordsView({ onOpen }: { onOpen: (serial: string) => void }) {
   const [page, setPage] = useState<RecordsPage | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  // Per-vehicle AI summaries (issue #38), cached for this browser session.
+  const [models, setModels] = useState<string[]>([]);
+  const [model, setModel] = useState("");
+  const [openSummary, setOpenSummary] = useState<string | null>(null);
+  const [summaries, setSummaries] = useState<Record<string, SummaryState>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/copilot/chat/models", { headers: { Accept: "application/json" } })
+      .then((response) => response.json().catch(() => ({})))
+      .then((data: { models?: string[] }) => {
+        if (cancelled || !Array.isArray(data.models)) return;
+        const chatModels = data.models.filter(isChatModel);
+        setModels(chatModels);
+        setModel((current) => (chatModels.includes(current) ? current : chatModels[0] ?? ""));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function summarize(recordSerial: string, force = false) {
+    setOpenSummary((current) => (current === recordSerial && !force ? null : recordSerial));
+    if (!model || (!force && summaries[recordSerial]?.status === "done") || summaries[recordSerial]?.status === "loading") return;
+    if (!force && openSummary === recordSerial) return;
+    setSummaries((current) => ({ ...current, [recordSerial]: { status: "loading" } }));
+    try {
+      const data = await postJson<AiSummaryResult>(`/api/copilot/vehicles/${encodeURIComponent(recordSerial)}/ai-summary`, { model });
+      setSummaries((current) => ({ ...current, [recordSerial]: { status: "done", data } }));
+    } catch (err) {
+      setSummaries((current) => ({ ...current, [recordSerial]: { status: "error", error: err instanceof Error ? err.message : "The AI summary failed." } }));
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -138,22 +202,37 @@ function RecordsView({ onOpen }: { onOpen: (serial: string) => void }) {
         </form>
         <p className="records-summary" aria-live="polite">{loading ? "Loading records…" : error ? "" : total === 0 ? (submitted ? `No records match “${submitted}”.` : "No records found.") : `Showing ${first.toLocaleString()}–${last.toLocaleString()} of ${total.toLocaleString()} records${submitted ? ` matching “${submitted}”` : ""}`}</p>
         {error && <p className="ai-error" role="alert">{error}</p>}
+        <div className="records-ai-row"><label htmlFor="records-ai-model">AI summary model</label><select id="records-ai-model" value={model} onChange={(event) => setModel(event.target.value)} disabled={models.length === 0}>{models.length === 0 ? <option value="">No local model available</option> : models.map((name) => <option key={name} value={name}>{name}</option>)}</select><span>Summaries use the stored record only and take about a minute on CPU.</span></div>
       </div>
       {page && page.vehicles.length > 0 && (
         <div className="records-table-wrap">
           <table className="records-table">
-            <thead><tr><th scope="col">Serial</th><th scope="col">Vehicle</th><th scope="col">Mileage</th><th scope="col">Status</th><th scope="col">Open items</th><th scope="col">History</th></tr></thead>
+            <thead><tr><th scope="col">Serial</th><th scope="col">Vehicle</th><th scope="col">Mileage</th><th scope="col">Status</th><th scope="col">Open items</th><th scope="col">History</th><th scope="col">AI summary</th></tr></thead>
             <tbody>
-              {page.vehicles.map((record) => (
-                <tr key={record.serial}>
-                  <td><button type="button" className="record-link" onClick={() => onOpen(record.serial)}>{record.serial}</button></td>
-                  <td>{[record.year, record.make, record.model].filter(Boolean).join(" ")}</td>
-                  <td>{formatMiles(record.mileage)}</td>
-                  <td><span className={`record-pill ${record.incomplete || record.conflicting ? "incomplete" : ""}`}>{record.completeness ?? "Unknown"}</span></td>
-                  <td>{record.open_recommendations}</td>
-                  <td>{record.history_count}</td>
-                </tr>
-              ))}
+              {page.vehicles.map((record) => {
+                const summary = summaries[record.serial];
+                const isOpen = openSummary === record.serial;
+                return (
+                  <Fragment key={record.serial}>
+                    <tr className={isOpen ? "summary-open" : ""}>
+                      <td><button type="button" className="record-link" onClick={() => onOpen(record.serial)}>{record.serial}</button></td>
+                      <td>{[record.year, record.make, record.model].filter(Boolean).join(" ")}</td>
+                      <td>{formatMiles(record.mileage)}</td>
+                      <td><span className={`record-pill ${record.incomplete || record.conflicting ? "incomplete" : ""}`}>{record.completeness ?? "Unknown"}</span></td>
+                      <td>{record.open_recommendations}</td>
+                      <td>{record.history_count}</td>
+                      <td><button type="button" className="copy-button ai-button" aria-expanded={isOpen} aria-controls={`summary-${record.serial}`} onClick={() => void summarize(record.serial)} disabled={!model}>{summary?.status === "loading" ? "Summarizing…" : isOpen ? "Hide summary" : "✦ AI summary"}</button></td>
+                    </tr>
+                    {isOpen && (
+                      <tr className="summary-row" id={`summary-${record.serial}`}>
+                        <td colSpan={7}>
+                          <VehicleSummaryPanel serial={record.serial} state={summary} onOpen={() => onOpen(record.serial)} onRetry={() => void summarize(record.serial, true)} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
