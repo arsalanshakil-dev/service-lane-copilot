@@ -40,9 +40,9 @@ app = FastAPI(
     title="Service Lane Copilot API",
     version="0.1.0",
     description=(
-        "Read-only REST API over the 250-record synthetic vehicle dataset.\n\n"
-        "## REST API\n"
-        "Use the vehicle routes to search and retrieve synthetic vehicle records. "
+        "REST API and local Ollama chat over the 250-record synthetic vehicle dataset.\n\n"
+        "## REST API and local chat\n"
+        "Vehicle search and retrieval use synthetic records. The app chat uses only local Ollama at 127.0.0.1:11434 and the registered MCP tools/resources. "
         "Unknown serials return 404; no real dealership data is queried.\n\n"
         "## MCP agent access\n"
         "The same dataset is available to MCP-compatible agents over Streamable HTTP at `/mcp` "
@@ -56,7 +56,7 @@ app = FastAPI(
     openapi_tags=[
         {
             "name": "Backend overview",
-            "description": "Service status and a summary of the REST and MCP interfaces.",
+            "description": "Service status and a summary of the REST, local chat, and MCP interfaces.",
         },
         {
             "name": "Vehicles",
