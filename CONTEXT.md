@@ -20,6 +20,7 @@ The demo uses 250 fictional vehicle records. It is not a production maintenance 
 2. Review the matching synthetic vehicle, mileage, history, data timing, limitations, and separately labeled simulated telemetry trends.
 3. Review explicitly stored due or coming-up examples with their record evidence and demo rule.
 4. If current mileage is missing or needs correction, replace it with an advisor-confirmed reading, date, and source in the local synthetic record; mileage alone does not resolve missing history.
+   When a service is done (for example an oil change), use **✓ Mark as done** on its recommendation or **+ Record service** in Service history. The service is saved to the vehicle record in Supabase, the recommendation shows Completed, and a higher odometer reading updates current mileage.
 5. Prepare and edit customer explanations, quote text, follow-ups, or record/history request drafts. Template drafts appear instantly; **Generate with local AI** rewrites the active draft with a local Ollama model (no prices; never sent).
 6. Optionally request **AI suggestions** for extra items to check. Records with missing mileage, incomplete or conflicting data, or no history get a limitation message instead.
 7. The advisor can use the same lookup, evidence, and draft capabilities through the in-app local assistant. The assistant answers dealership service questions only; general Q&A gets a fixed refusal.
@@ -31,7 +32,7 @@ No match or incomplete, stale, or contradictory data must remain visible as unce
 
 - Use synthetic data only. Never add real customer, vehicle, or dealership records, credentials, or secrets.
 - Drafts are text only: they do not send messages, submit requests, book appointments, modify records, or contact external services. A separate local REST endpoint lets an advisor replace synthetic current mileage with date/source provenance.
-- MCP operations remain read-only apart from returning draft text; they do not persist changes. The manual mileage route is the only REST write path and changes synthetic data only. Chat uses installed local Ollama models, and chat history is not stored by the backend.
+- MCP operations remain read-only apart from returning draft text; they do not persist changes. The manual mileage route and the completed-service route are the only REST write paths, and they change synthetic data only. Chat uses installed local Ollama models, and chat history is not stored by the backend.
 - Supabase is configured for either local development or a user-provided hosted project. The Python backend alone connects to it; no hosted project is provisioned by this code change. `SUPABASE_URL` and `SUPABASE_SECRET_KEY` stay in `backend/.env`.
 - OBD-II/CAN, live dealership systems, external history providers, real maintenance schedules, and production deployment are out of scope for this demo. Future OBD-II work must be separately specified and read-only.
 - Do not invent prices, vehicle details, maintenance intervals, or history.
