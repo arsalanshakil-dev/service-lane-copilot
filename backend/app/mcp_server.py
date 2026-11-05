@@ -1,4 +1,8 @@
-"""Read-only MCP tools over the synthetic Service Lane Copilot dataset."""
+"""MCP tools over the synthetic Service Lane Copilot dataset.
+
+Read tools and draft tools never change records. Write tools (issue #44) add and edit
+synthetic vehicle records through the same validated, change-logged functions as the REST API.
+"""
 
 import json
 from typing import Any, Literal
@@ -6,6 +10,7 @@ from typing import Any, Literal
 from mcp.server import MCPServer
 
 from .data_store import find_vehicle, load_vehicles, search_vehicle_summaries
+from .mcp_writes import MCP_ACTOR, WriteRejected, execute_write
 
 mcp_server = MCPServer(
     "Service Lane Copilot",
@@ -14,7 +19,12 @@ mcp_server = MCPServer(
         "This server exposes synthetic demo vehicle records only. Treat maintenance rules as fictional examples. "
         "Vehicle telemetry is deterministic simulated POC data, never live OBD-II. Do not use it as mileage, service-history, diagnostic, or recommendation evidence. "
         "Show the evidence and data limitations. Safety-related entries require advisor verification. "
-        "All draft tools are read-only and never send, submit, book, or update records."
+        "Draft tools never send, submit, book, or update records. Write tools (add_vehicle, update_vehicle_details, "
+        "update_vehicle_mileage, record_completed_service, edit_history_entry, add_recommendation, "
+        "update_recommendation, remove_recommendation) change synthetic records only when the user clearly asked for that change. "
+        "Service history can be corrected with edit_history_entry but never deleted; "
+        "read the record first, pass the expected entry for edits, and report the saved change or the returned error. "
+        "Every write is recorded in the vehicle's change log."
     ),
 )
 
@@ -162,7 +172,8 @@ def demo_guide() -> str:
         "Service Lane Copilot MCP demo guide. All 1,000 vehicle records and recommendation rules are synthetic. "
         "Vehicle telemetry fields are simulated POC samples only, not live OBD-II readings and not service or recommendation evidence. Use get_vehicle_record to inspect dealership-history evidence. Unknown, missing, stale, or conflicting data must remain uncertain. "
         "Safety-related items are verification prompts, not diagnoses. Service history is synthetic and is not retrieved "
-        "from OBD-II/CAN. Draft tools never send messages or change records."
+        "from OBD-II/CAN. Draft tools never send messages or change records. Write tools change synthetic records only "
+        "when asked, validate input, refuse stale edits, and log every change."
     )
 
 
@@ -197,6 +208,64 @@ def dataset_summary() -> dict[str, Any]:
         "live_dealership_access": False,
         "simulated_obd_telemetry_available": True,
     }
+
+
+# ---- Write tools (issue #44): validated, change-logged edits to synthetic records ----
+
+def _write(tool: str, args: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return execute_write(tool, args, MCP_ACTOR)
+    except WriteRejected as exc:
+        return {"saved": False, "error": str(exc)}
+
+
+@mcp_server.tool()
+def add_vehicle(serial: str, make: str, model: str, year: int, mileage: int | None = None, mileage_date: str | None = None) -> dict[str, Any]:
+    """Add a new synthetic vehicle record. serial: 3-32 letters/digits/hyphens. mileage_date (YYYY-MM-DD) is required when mileage is given. Fails if the serial exists."""
+    return _write("add_vehicle", {"serial": serial, "make": make, "model": model, "year": year, "mileage": mileage, "mileage_date": mileage_date})
+
+
+@mcp_server.tool()
+def update_vehicle_details(serial: str, make: str, model: str, year: int, new_serial: str | None = None) -> dict[str, Any]:
+    """Change a vehicle's make, model, and year; optionally rename its serial to new_serial (fails if new_serial exists). Pass the current values for fields that should not change."""
+    return _write("update_vehicle_details", {"serial": serial, "make": make, "model": model, "year": year, "new_serial": new_serial})
+
+
+@mcp_server.tool()
+def update_vehicle_mileage(serial: str, mileage: int, mileage_date: str, mileage_source: Literal["advisor_observed", "customer_reported"] = "advisor_observed") -> dict[str, Any]:
+    """Replace a vehicle's current odometer reading. mileage_date is YYYY-MM-DD and cannot be in the future."""
+    return _write("update_vehicle_mileage", {"serial": serial, "mileage": mileage, "mileage_date": mileage_date, "mileage_source": mileage_source})
+
+
+@mcp_server.tool()
+def record_completed_service(serial: str, service_name: str, service_date: str, mileage: int | None = None, detail: str = "", recommendation_name: str | None = None) -> dict[str, Any]:
+    """Record a completed service in the vehicle's history (service_date YYYY-MM-DD). If it completes a stored recommendation, pass its exact name as recommendation_name to mark it Completed. A higher mileage also updates current mileage."""
+    return _write("record_completed_service", {"serial": serial, "service_name": service_name, "service_date": service_date, "mileage": mileage, "detail": detail, "recommendation_name": recommendation_name})
+
+
+@mcp_server.tool()
+def edit_history_entry(serial: str, index: int, expected_date: str, expected_name: str, service_date: str, name: str, detail: str = "", mileage: int | None = None) -> dict[str, Any]:
+    """Replace one service-history entry. index is its 0-based position in get_vehicle_record history; expected_date and expected_name must match that entry exactly (e.g. 'Apr 18, 2026'). service_date is YYYY-MM-DD."""
+    return _write("edit_history_entry", {"serial": serial, "index": index, "expected_date": expected_date, "expected_name": expected_name, "service_date": service_date, "name": name, "detail": detail, "mileage": mileage})
+
+
+
+@mcp_server.tool()
+def add_recommendation(serial: str, name: str, status: Literal["Due", "Coming up", "Advisor verification", "Not yet due"], text: str, evidence: str, rule: str | None = None, safety: bool = False) -> dict[str, Any]:
+    """Add an advisor-entered recommendation with the advisor's own explanation (text) and evidence. It is labelled Advisor-entered, not a demo-schedule item."""
+    return _write("add_recommendation", {"serial": serial, "name": name, "status": status, "text": text, "evidence": evidence, "rule": rule, "safety": safety})
+
+
+@mcp_server.tool()
+def update_recommendation(serial: str, index: int, expected_name: str, name: str, status: Literal["Due", "Coming up", "Advisor verification", "Not yet due"], text: str, evidence: str, rule: str | None = None, safety: bool = False) -> dict[str, Any]:
+    """Replace one recommendation. index is its 0-based position in get_vehicle_record recs and expected_name must match it."""
+    return _write("update_recommendation", {"serial": serial, "index": index, "expected_name": expected_name, "name": name, "status": status, "text": text, "evidence": evidence, "rule": rule, "safety": safety})
+
+
+@mcp_server.tool()
+def remove_recommendation(serial: str, index: int, expected_name: str) -> dict[str, Any]:
+    """Remove one recommendation. index and expected_name must match the recommendation from get_vehicle_record."""
+    return _write("remove_recommendation", {"serial": serial, "index": index, "expected_name": expected_name})
 
 
 mcp_http_app = mcp_server.streamable_http_app(streamable_http_path="/")

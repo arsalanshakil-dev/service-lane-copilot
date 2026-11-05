@@ -25,14 +25,17 @@ from .record_edits import (
     RecordValidationError,
     add_recommendation,
     create_vehicle,
-    delete_history_entry,
     delete_recommendation,
     update_history_entry,
     update_recommendation,
     update_vehicle_details,
 )
 from .ai_assist import generate_ai_draft, generate_ai_summary, generate_ai_suggestions
+from .mcp_writes import WRITE_TOOL_NAMES, WriteRejected
 from .local_agent import (
+    ProposalNotFound,
+    apply_proposal,
+    discard_proposal,
     OllamaRequestError,
     OllamaTimeoutError,
     OllamaUnavailableError,
@@ -218,10 +221,11 @@ def capabilities() -> dict[str, Any]:
             "record_completed_service": "POST /api/vehicles/{serial}/services",
             "add_vehicle": "POST /api/vehicles",
             "edit_vehicle_details": "PATCH /api/vehicles/{serial}",
-            "edit_or_delete_history_entry": "PUT|DELETE /api/vehicles/{serial}/history/{index}",
+            "edit_history_entry": "PUT /api/vehicles/{serial}/history/{index} (history entries cannot be deleted)",
             "add_edit_remove_recommendation": "POST /api/vehicles/{serial}/recommendations; PUT|DELETE .../recommendations/{index}",
             "local_chat_models": "GET /api/chat/models",
             "local_mcp_chat": "POST /api/chat",
+            "chat_write_proposals": "POST /api/chat/proposals/{id}/apply; DELETE /api/chat/proposals/{id}",
             "local_ai_draft": "POST /api/vehicles/{serial}/ai-draft",
             "local_ai_suggestions": "POST /api/vehicles/{serial}/ai-suggestions",
             "local_ai_summary": "POST /api/vehicles/{serial}/ai-summary",
@@ -236,8 +240,10 @@ def capabilities() -> dict[str, Any]:
                 "create_record_request_draft",
                 "dataset_summary",
             ],
+            "write_tools": sorted(WRITE_TOOL_NAMES),
             "resources": ["service-lane://demo-guide", "vehicle://{serial}"],
-            "read_only": True,
+            "read_only": False,
+            "writes": "Validated and change-logged; the in-app chat only proposes writes that the advisor confirms.",
             "local_only": True,
         },
     }
@@ -301,6 +307,27 @@ async def local_chat(payload: LocalChatRequest) -> dict[str, Any]:
     except OllamaRequestError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+
+
+@app.post("/api/chat/proposals/{proposal_id}/apply", tags=["Backend overview"])
+def apply_chat_proposal(proposal_id: str) -> dict[str, Any]:
+    """Save a change the chat proposed, after the advisor confirmed it (single use; expires after 15 minutes)."""
+    try:
+        return apply_proposal(proposal_id)
+    except ProposalNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except WriteRejected as exc:
+        raise HTTPException(status_code=422, detail=f"Not saved: {exc}") from exc
+
+
+@app.delete("/api/chat/proposals/{proposal_id}", tags=["Backend overview"])
+def discard_chat_proposal(proposal_id: str) -> dict[str, Any]:
+    """Discard a change the chat proposed without saving anything."""
+    try:
+        discard_proposal(proposal_id)
+    except ProposalNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"discarded": True, "proposal_id": proposal_id}
 
 def _ollama_http_error(exc: Exception) -> HTTPException:
     """Map a local Ollama failure to the same 504/503/502 responses as the chat route."""
@@ -447,15 +474,6 @@ def edit_history_entry(serial: str, index: int, payload: HistoryEntryUpdate) -> 
         payload.service_date.isoformat(), payload.name, payload.detail, payload.mileage,
     ))
 
-
-@app.delete("/api/vehicles/{serial}/history/{index}", tags=["Vehicles"])
-def remove_history_entry(
-    serial: str, index: int,
-    expected_date: str = Query(alias="expectedDate", max_length=40),
-    expected_name: str = Query(alias="expectedName", max_length=120),
-) -> dict[str, Any]:
-    """Delete one service-history entry; the expected date and name must match."""
-    return _edit_result(lambda: delete_history_entry(serial, index, expected_date, expected_name))
 
 
 @app.post("/api/vehicles/{serial}/recommendations", tags=["Vehicles"], status_code=201)

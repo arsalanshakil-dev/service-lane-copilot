@@ -23,7 +23,6 @@ from app.main import (
     edit_history_entry,
     edit_vehicle_details,
     edit_vehicle_recommendation,
-    remove_history_entry,
     remove_vehicle_recommendation,
     update_manual_mileage,
     ManualMileageUpdate,
@@ -125,7 +124,7 @@ class EditRecordsTests(unittest.TestCase):
 
     def test_unknown_serial_returns_404(self) -> None:
         assert_http(self, 404, lambda: edit_vehicle_details("NOPE-1", VehicleDetailsUpdate(make="A", model="B", year=2020)))
-        assert_http(self, 404, lambda: remove_history_entry("NOPE-1", 0, "Apr 18, 2026", "Engine oil and filter"))
+        assert_http(self, 404, lambda: edit_history_entry("NOPE-1", 0, self.history_update()))
         assert_http(self, 404, lambda: add_vehicle_recommendation("NOPE-1", RecommendationInput(name="X", status="Due", text="t", evidence="e")))
 
     # ---- History ----
@@ -151,18 +150,31 @@ class EditRecordsTests(unittest.TestCase):
         before = self.snapshot()
         assert_http(self, 409, lambda: edit_history_entry(SERIAL, 1, self.history_update(expected={"date": "Nov 02, 2025", "name": "Wrong"})))
         assert_http(self, 409, lambda: edit_history_entry(SERIAL, 9, self.history_update()))
-        assert_http(self, 409, lambda: remove_history_entry(SERIAL, 0, "Apr 18, 2026", "Tire rotation"))
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
         assert_http(self, 422, lambda: edit_history_entry(SERIAL, 1, self.history_update(serviceDate=tomorrow)))
         self.assertEqual(self.client.rows, before)
 
-    def test_delete_history_entry_and_refresh_conflict(self) -> None:
-        result = remove_history_entry(SERIAL, 0, "Apr 18, 2026", "Engine oil and filter")
-        self.assertEqual([e["name"] for e in result["history"]], ["Tire rotation"])
-        self.assertEqual(self.stored()["changeLog"][-1]["action"], "history_entry_deleted")
-        # A history mileage above current mileage marks the record conflicting.
-        conflict = edit_history_entry(SERIAL, 0, self.history_update(mileage=60000))
+    def test_history_edit_above_current_mileage_marks_conflict(self) -> None:
+        conflict = edit_history_entry(SERIAL, 1, self.history_update(mileage=60000))
         self.assertTrue(conflict["conflicting"])
+
+    def test_service_history_cannot_be_deleted_via_api_or_mcp(self) -> None:
+        # User decision 2026-11-06: history can be corrected but never deleted.
+        import asyncio
+
+        from mcp import Client
+
+        from app.main import app
+        from app.mcp_server import mcp_server
+
+        history_routes = [r for r in app.routes if getattr(r, "path", "") == "/api/vehicles/{serial}/history/{index}"]
+        self.assertEqual({m for r in history_routes for m in r.methods}, {"PUT"})
+
+        async def tool_names() -> set[str]:
+            async with Client(mcp_server) as client:
+                return {tool.name for tool in (await client.list_tools()).tools}
+
+        self.assertNotIn("delete_history_entry", asyncio.run(tool_names()))
 
     # ---- Recommendations ----
 

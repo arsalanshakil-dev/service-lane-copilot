@@ -155,7 +155,6 @@ export function VehicleDetailsForm({ vehicle, onSaved, onCancel }: { vehicle: Ed
 
 export function HistoryRows({ vehicle, onSaved }: { vehicle: EditableVehicle; onSaved: (vehicle: EditableVehicle) => void }) {
   const [editing, setEditing] = useState<number | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [form, setForm] = useState({ serviceDate: "", name: "", detail: "", mileage: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ index: number; message: string } | null>(null);
@@ -164,7 +163,6 @@ export function HistoryRows({ vehicle, onSaved }: { vehicle: EditableVehicle; on
     const event = vehicle.history[index];
     setForm({ serviceDate: historyDateToIso(event.date) || todayIso(), name: event.name, detail: event.detail, mileage: milesFromText(event.mileage) });
     setEditing(index);
-    setConfirmDelete(null);
     setError(null);
   }
 
@@ -183,22 +181,6 @@ export function HistoryRows({ vehicle, onSaved }: { vehicle: EditableVehicle; on
       onSaved(updated);
     } catch (err) {
       setError({ index, message: err instanceof Error ? err.message : "Could not save the history entry." });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(index: number) {
-    const entry = vehicle.history[index];
-    setBusy(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({ expectedDate: entry.date, expectedName: entry.name });
-      const updated = await sendJson<EditableVehicle>("DELETE", `${vehiclePath(vehicle.serial)}/history/${index}?${params}`);
-      setConfirmDelete(null);
-      onSaved(updated);
-    } catch (err) {
-      setError({ index, message: err instanceof Error ? err.message : "Could not delete the history entry." });
     } finally {
       setBusy(false);
     }
@@ -228,11 +210,7 @@ export function HistoryRows({ vehicle, onSaved }: { vehicle: EditableVehicle; on
               <span className="history-name">{event.name}{event.edited && <span className="edited-tag">edited</span>}<span className="history-detail">{event.detail}</span></span>
               <span className="history-mileage">{event.mileage}</span>
               <span className="row-actions">
-                {confirmDelete === index ? (
-                  <><span className="confirm-text">Delete?</span><button className="link-button danger" type="button" onClick={() => void remove(index)} disabled={busy}>Yes</button><button className="link-button" type="button" onClick={() => setConfirmDelete(null)} disabled={busy}>No</button></>
-                ) : (
-                  <><button className="link-button" type="button" onClick={() => startEdit(index)} aria-label={`Edit ${event.name} on ${event.date}`}>Edit</button><button className="link-button danger" type="button" onClick={() => { setConfirmDelete(index); setEditing(null); }} aria-label={`Delete ${event.name} on ${event.date}`}>Delete</button></>
-                )}
+                <button className="copy-button" type="button" onClick={() => startEdit(index)} aria-label={`Edit ${event.name} on ${event.date}`}>Edit</button>
               </span>
               {error?.index === index && editing !== index && <span className="row-error"><FormError message={error.message} /></span>}
             </div>
@@ -303,8 +281,8 @@ export function useRecommendationEditor(vehicle: EditableVehicle | null, onSaved
       return (
         <div className="inline-confirm" role="alertdialog" aria-label={`Remove ${rec.name}`}>
           <span>Remove “{rec.name}” from this record?</span>
-          <button className="link-button danger" type="button" disabled={busy} onClick={() => void run(() => sendJson("DELETE", `${vehiclePath(vehicle.serial)}/recommendations/${index}?${new URLSearchParams({ expectedName: rec.name })}`))}>Yes, remove</button>
-          <button className="link-button" type="button" disabled={busy} onClick={() => { setMode(null); setError(""); }}>Cancel</button>
+          <button className="copy-button danger-button" type="button" disabled={busy} onClick={() => void run(() => sendJson("DELETE", `${vehiclePath(vehicle.serial)}/recommendations/${index}?${new URLSearchParams({ expectedName: rec.name })}`))}>Yes, remove</button>
+          <button className="copy-button" type="button" disabled={busy} onClick={() => { setMode(null); setError(""); }}>Cancel</button>
           <FormError message={error} />
         </div>
       );

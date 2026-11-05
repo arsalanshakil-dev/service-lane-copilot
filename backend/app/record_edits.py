@@ -198,25 +198,6 @@ def update_history_entry(
     return updated
 
 
-def delete_history_entry(
-    serial: str, index: int, expected_date: str, expected_name: str, actor: str = WEB_ACTOR,
-) -> dict[str, Any] | None:
-    normalized = serial.strip().upper()
-    with _DATA_WRITE_LOCK:
-        current = find_vehicle(normalized)
-        if current is None:
-            return None
-        history = [dict(e) for e in current.get("history", [])]
-        entry = _guarded_index(history, index, "history entry")
-        _check_expected_history(entry, expected_date, expected_name)
-        del history[index]
-        updated = {**current, "history": history}
-        _refresh_conflict(updated)
-        append_change(updated, "history_entry_deleted",
-                      f"Deleted history entry '{expected_name}' ({expected_date}, {entry.get('mileage')}).", actor)
-        _save(normalized, updated, "history deletion")
-    return updated
-
 
 # ---- Recommendations ----
 

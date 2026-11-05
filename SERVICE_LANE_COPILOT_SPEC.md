@@ -20,7 +20,7 @@ This MVP uses synthetic vehicles, service histories, and clearly labeled example
 
 ## MCP interface
 
-Expose the synthetic records to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the Supabase-backed vehicle store with REST. MCP remains read-only; the REST API has two advisor-reviewed synthetic write routes (mileage replacement and completed-service recording).
+Expose the synthetic records to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the Supabase-backed vehicle store with REST. Read and draft tools never change records; write tools (issue #44) add and edit synthetic records through the same validated, change-logged functions as the REST API. The in-app chat only proposes writes, which the advisor confirms.
 
 - Tools: search records, get one vehicle record, prepare customer drafts, prepare record-intake/outside-history drafts, and summarize the dataset.
 - Resources: a demo safety guide and individual synthetic vehicle records.
@@ -100,7 +100,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - An advisor can replace the current mileage for any known synthetic vehicle, whether the existing value is missing or needs correction.
 - Record the reading date and source (`advisor_observed` or `customer_reported`); the replacement supersedes the current mileage and does not retain the previous value.
 - A reading below recorded service mileage is marked conflicting. Missing, stale, or incomplete service history keeps recommendations paused; mileage entry alone never creates a recommendation or interval.
-- This write is available only through the local REST endpoint. MCP tools and resources remain read-only.
+- This write is available through the local REST endpoint and the MCP `update_vehicle_mileage` tool (issue #44); both validate and log it.
 - See `docs/feature-spec-manual-mileage.md`.
 
 ### Recommendations
@@ -140,15 +140,21 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 
 - When a service is done, the advisor records it with **✓ Mark as done** on a stored recommendation or **+ Record service** in Service history (service name, date not in the future, optional odometer, optional note).
 - `POST /api/vehicles/{serial}/services` saves it to the Supabase record: a newest-first history event marked `advisor_recorded`, the matching recommendation set to **Completed** with completion evidence, and current mileage raised only when the service odometer is higher.
-- No next-due interval is calculated; MCP and chat stay read-only. Unknown serial → 404; invalid input or an unknown recommendation → 422 with no write.
+- No next-due interval is calculated. Unknown serial → 404; invalid input or an unknown recommendation → 422 with no write. Also available as the MCP `record_completed_service` tool (issue #44).
 - See `docs/feature-spec-record-service.md`.
 
 ### Adding vehicles and editing records (issue #42)
 
-- Advisors can add a vehicle (serial, make, model, year, optional mileage), edit vehicle details including a serial rename, edit or delete individual history entries, and add, edit, or remove recommendations. Advisor-written recommendations are labelled "Advisor-entered" (approved exception in AGENTS.md).
+- Advisors can add a vehicle (serial, make, model, year, optional mileage), edit vehicle details including a serial rename, edit individual history entries (history can never be deleted, user decision 2026-11-06), and add, edit, or remove recommendations. Advisor-written recommendations are labelled "Advisor-entered" (approved exception in AGENTS.md).
 - Index-based edits name the expected entry; a stale request returns 409 without writing. Duplicate serials return 409; invalid input returns 422; unknown serials return 404.
 - Every REST write, including mileage and completed services, appends a change-log entry to the record (latest 100 kept), shown under Record details.
-- MCP stays read-only in this change. See `docs/feature-spec-edit-vehicle-records.md`.
+- See `docs/feature-spec-edit-vehicle-records.md`.
+
+### MCP write tools and chat confirmation (issue #44)
+
+- MCP write tools: add_vehicle, update_vehicle_details, update_vehicle_mileage, record_completed_service, edit_history_entry, add_recommendation, update_recommendation, remove_recommendation. Same validation and change log as REST (actor "MCP agent"); errors return `saved: false` without writing.
+- In the in-app chat a write request becomes a confirm card; nothing is saved until the advisor clicks **Apply change** (single use, 15-minute expiry; actor "advisor via chat (confirmed)"). **Discard** drops it.
+- MCP stays on localhost; draft tools never send. See `docs/feature-spec-mcp-write-tools.md`.
 
 ### Drafts and approvals
 
@@ -228,9 +234,9 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - [x] **Define sample record coverage.** Use 250 synthetic vehicles: 10 hand-authored examples plus 240 deterministic generated records. Cover complete history, no matching recommendation, missing mileage, stale mileage, conflicting mileage, and unknown serial numbers. Issue #34 adds 750 more generated records (DEMO-0251…DEMO-1000) with 16 fictional make/model lines and 3–6 history entries from eight fictional service types, using `backend/generate_synthetic_vehicles.py` with a fixed seed.
 - [x] **Set the draft content contract.** Explanation, quote, follow-up, dealership-record intake, and outside-history drafts are editable and unsent. Quote drafts contain suggested line items but no invented pricing.
 - [x] **Set MVP acceptance checks.** The nine repeatable behavior checks are listed in the verification plan. Their execution is still needed before claiming the checks passed.
-- [x] **Choose implementation stack and local run instructions.** Use a Python FastAPI backend and a React/Next.js App Router frontend with TypeScript. Expose read-only MCP tools over Streamable HTTP and stdio. Run the two local development servers using the root README instructions.
+- [x] **Choose implementation stack and local run instructions.** Use a Python FastAPI backend and a React/Next.js App Router frontend with TypeScript. Expose MCP tools over Streamable HTTP and stdio (read and draft tools; validated, change-logged write tools since issue #44). Run the two local development servers using the root README instructions.
 
-**Demo release scope:** approved as a synthetic-data demonstration. It is a local, non-production prototype with a Python REST backend whose only write operations are the advisor-reviewed synthetic mileage update and completed-service recording, a read-only MCP server, and a Next.js frontend. It has no external integrations, real customer data, or live dealership actions. The dataset contains 250 records total; generated profiles use fictional makes/models and repeatable example scenarios.
+**Demo release scope:** approved as a synthetic-data demonstration. It is a local, non-production prototype with a Python REST backend whose write operations are advisor-reviewed synthetic edits (mileage, completed services, adding vehicles, and editing details, history, and recommendations) with a change log, an MCP server whose write tools use the same validation (chat writes need advisor confirmation), and a Next.js frontend. It has no external integrations, real customer data, or live dealership actions. The dataset contains 250 records total; generated profiles use fictional makes/models and repeatable example scenarios.
 
 ### Needed before a real dealership pilot
 
@@ -245,7 +251,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 ### Decisions already captured
 
 - Primary user is a dealership service advisor; the interface is a web page.
-- MCP-compatible agent harnesses can access the same synthetic records through read-only tools/resources over stdio or local Streamable HTTP.
+- MCP-compatible agent harnesses can access the same synthetic records through tools/resources over stdio or local Streamable HTTP; write tools are validated and change-logged (issue #44).
 - The released demo uses 1,000 synthetic vehicle records and fictional service histories/rules.
 - Demo lookup uses a synthetic vehicle serial. A connected version may read a VIN through OBD-II/CAN and must map it to the dealership’s vehicle identifier before matching. A missing record offers a dealership-record intake draft or an outside-history request draft.
 - A future connected workflow may prefill vehicle identity and available mileage from OBD-II/CAN; the current demo has no physical adapter integration. Service history remains a separate source.

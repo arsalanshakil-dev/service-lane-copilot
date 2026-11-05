@@ -147,18 +147,25 @@ class RecordServiceTests(unittest.TestCase):
                 with self.assertRaises(ValidationError):
                     payload(**overrides)
 
-    def test_mcp_exposes_no_service_write_tool(self) -> None:
-        async def tool_names() -> set[str]:
-            from mcp import Client
-
-            async with Client(mcp_server) as client:
-                return {tool.name for tool in (await client.list_tools()).tools}
-
+    def test_mcp_record_service_tool_writes_and_logs_mcp_agent(self) -> None:
+        # Issue #44 deliberately added MCP write tools; they reuse this validated write path.
         import asyncio
 
-        names = asyncio.run(tool_names())
-        self.assertFalse({name for name in names if "record" in name and "service" in name and "draft" not in name})
-        self.assertNotIn("record_completed_service", names)
+        from mcp import Client
+
+        async def call() -> dict[str, Any]:
+            async with Client(mcp_server) as client:
+                names = {tool.name for tool in (await client.list_tools()).tools}
+                self.assertIn("record_completed_service", names)
+                result = await client.call_tool("record_completed_service", {
+                    "serial": SERIAL, "service_name": "Wiper blades", "service_date": "2026-05-01", "mileage": 48200,
+                })
+                return result.structured_content
+
+        result = asyncio.run(call())
+        self.assertTrue(result["saved"])
+        self.assertEqual(self.stored()["history"][0]["name"], "Wiper blades")
+        self.assertEqual(self.stored()["changeLog"][-1]["actor"], "MCP agent")
 
 
 if __name__ == "__main__":
