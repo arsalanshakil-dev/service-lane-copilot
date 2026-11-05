@@ -19,11 +19,11 @@ flowchart LR
     Harness[MCP-compatible agent harness] -->|Streamable HTTP /mcp| MCP[MCP server\nbackend/app/mcp_server.py]
     Harness -->|stdio| Launcher[backend/mcp_stdio.py]
     Launcher --> MCP
-    MCP --> Store
+    MCP -->|read-only| Store
     API -->|Swagger /docs · OpenAPI /openapi.json| Docs[Backend API docs]
 ```
 
-The web app and MCP server use the same synthetic data loader. Recommendations are explicit demo data with visible history evidence. Drafts are returned for advisor review only; the app does not send, submit, or persist them.
+The web app and MCP server share the synthetic dataset. The local REST API can replace a missing mileage value and save its date/source; MCP remains read-only. Recommendations are explicit demo data with visible history evidence. Drafts are returned for advisor review only; they are not sent or persisted.
 
 ## Folder structure
 
@@ -37,14 +37,15 @@ service-lane-copilot/
 ├── data/
 │   └── vehicles.json                 # 250 synthetic vehicle/history records
 ├── docs/
-│   └── feature-spec-template.md      # Template for a new feature spec
+│   ├── feature-spec-template.md      # Template for a new feature spec
+│   └── feature-spec-manual-mileage.md # Manual mileage workflow and boundaries
 ├── backend/
 │   ├── requirements.txt              # Pinned Python dependencies
 │   ├── mcp_stdio.py                  # Local stdio MCP launcher
 │   └── app/
 │       ├── main.py                   # REST routes and HTTP MCP mount
 │       ├── mcp_server.py             # MCP tools and resources
-│       └── data_store.py             # Shared read-only data loader
+│       └── data_store.py             # Synthetic data loader and local mileage persistence
 └── frontend/
     ├── package.json                  # Frontend scripts and dependencies
     ├── next.config.ts                # Backend API rewrite
@@ -69,20 +70,21 @@ The tree shows the main source files and intentionally omits generated folders s
 | `data/vehicles.json` | The 250 fictional vehicle records, service histories, and explicit demo recommendation examples used by the app. |
 | `backend/requirements.txt` | Pinned Python packages for FastAPI, Uvicorn, and MCP. |
 | `backend/mcp_stdio.py` | Entry point for MCP clients that start the server as a local subprocess. |
-| `backend/app/main.py` | FastAPI application, REST endpoints, and mounted Streamable HTTP MCP endpoint. |
+| `backend/app/main.py` | FastAPI REST endpoints, local manual mileage update, and mounted Streamable HTTP MCP endpoint. |
 | `backend/app/mcp_server.py` | MCP server setup, read-only tools, resources, and draft responses. |
-| `backend/app/data_store.py` | Shared loader and validation for the synthetic JSON records. |
+| `backend/app/data_store.py` | Shared synthetic JSON loader, validation, and atomic persistence for manual mileage updates. |
 | `frontend/package.json` | Frontend scripts and pinned direct dependencies. |
 | `frontend/package-lock.json` | Exact resolved frontend dependency versions for repeatable npm installs. |
 | `frontend/next.config.ts` | Rewrite from browser `/api/copilot/*` requests to the local FastAPI `/api/*` routes. |
 | `frontend/.env.local.example` | Example backend URL setting for local development. |
-| `frontend/app/page.tsx` | Main advisor lookup and service-history screen. |
+| `frontend/app/page.tsx` | Main advisor lookup and service-history screen, including manual mileage entry when current mileage is missing. |
 | `frontend/app/layout.tsx` | Shared page shell and document metadata. |
 | `frontend/app/icon.svg` | Service Lane Copilot favicon for browser tabs. |
-| `frontend/app/globals.css` | App-wide styles. |
+| `frontend/app/globals.css` | App-wide styles, including the responsive manual mileage form. |
 | `frontend/tsconfig.json` | TypeScript compiler configuration used by Next.js. |
 | `frontend/next-env.d.ts` | Next.js generated TypeScript environment declarations. |
 | `docs/feature-spec-template.md` | Template for specifying a distinct feature before implementation. |
+| `docs/feature-spec-manual-mileage.md` | Manual mileage update workflow, validation, provenance, and evidence boundaries. |
 | `docs/links.txt` | Project reference links. |
 | `docs/AI_Agent_Project_Guide_Local_and_Free_Models.pdf` | Supporting project reference material. |
 | `docs/Day 1 - Part 2 (To deliver) - AI in 2026.pptx` | Slides that introduced the project idea. |
@@ -108,7 +110,7 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Swagger UI is at `http://127.0.0.1:8000/docs`; it documents the REST endpoints and points to the MCP interface overview. The raw OpenAPI schema is at `http://127.0.0.1:8000/openapi.json`, backend capabilities are at `http://127.0.0.1:8000/api/capabilities`, the health check is at `http://127.0.0.1:8000/api/health`, and the MCP Streamable HTTP endpoint is `http://127.0.0.1:8000/mcp`. MCP messages use the MCP protocol, so the MCP tool list is described in the overview rather than represented as OpenAPI routes.
+Swagger UI is at `http://127.0.0.1:8000/docs`; it documents the REST endpoints and points to the MCP interface overview. The local REST API also provides `PATCH /api/vehicles/{serial}/mileage` for advisor entry when a known synthetic record has no current reading; it stores the replacement mileage, ISO date, and source. If history lacks mileage evidence or conflicts, recommendations remain paused. MCP tools remain read-only. The raw OpenAPI schema is at `http://127.0.0.1:8000/openapi.json`, backend capabilities are at `http://127.0.0.1:8000/api/capabilities`, the health check is at `http://127.0.0.1:8000/api/health`, and the MCP Streamable HTTP endpoint is `http://127.0.0.1:8000/mcp`. MCP messages use the MCP protocol, so the MCP tool list is described in the overview rather than represented as OpenAPI routes.
 
 ### Terminal 2: Next.js web app
 
