@@ -20,6 +20,16 @@ from .data_store import (
     update_vehicle_mileage,
 )
 from .mcp_server import mcp_server, mcp_http_app
+from .rules_engine import (
+    RuleConflict,
+    RulesUnavailable,
+    RuleValidation,
+    add_rule,
+    effective_vehicle,
+    load_rules,
+    rule_recommendation_names,
+    update_rule,
+)
 from .record_edits import (
     RecordConflictError,
     RecordValidationError,
@@ -83,6 +93,20 @@ class CompletedServiceRecord(BaseModel):
     detail: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] = ""
     recommendation_name: str | None = Field(default=None, alias="recommendationName", max_length=120)
 
+
+
+# ---- Editable maintenance rules (issue #47) ----
+
+class RuleInput(BaseModel):
+    service_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)] = Field(alias="serviceName")
+    coming_up_miles: int = Field(alias="comingUpMiles", ge=0, le=200_000)
+    due_miles: int = Field(alias="dueMiles", ge=1, le=200_000)
+    safety: bool = False
+
+
+class RuleUpdate(RuleInput):
+    expected_updated_at: str = Field(alias="expectedUpdatedAt", max_length=64)
+    enabled: bool = True
 
 # ---- Add and edit vehicle records (issue #42) ----
 
@@ -220,6 +244,7 @@ def capabilities() -> dict[str, Any]:
             "update_manual_mileage": "PATCH /api/vehicles/{serial}/mileage",
             "record_completed_service": "POST /api/vehicles/{serial}/services",
             "add_vehicle": "POST /api/vehicles",
+            "maintenance_rules": "GET|POST /api/rules; PUT /api/rules/{id} (no delete; disable instead)",
             "edit_vehicle_details": "PATCH /api/vehicles/{serial}",
             "edit_history_entry": "PUT /api/vehicles/{serial}/history/{index} (history entries cannot be deleted)",
             "add_edit_remove_recommendation": "POST /api/vehicles/{serial}/recommendations; PUT|DELETE .../recommendations/{index}",
@@ -269,7 +294,7 @@ def get_vehicle(serial: str) -> dict[str, Any]:
     vehicle = find_vehicle(serial)
     if vehicle is None:
         raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
-    return vehicle
+    return effective_vehicle(vehicle)
 
 @app.get("/api/chat/models", tags=["Backend overview"])
 async def chat_models() -> dict[str, Any]:
@@ -345,7 +370,7 @@ async def _known_vehicle(serial: str) -> dict[str, Any]:
     vehicle = await asyncio.to_thread(find_vehicle, serial)
     if vehicle is None:
         raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
-    return vehicle
+    return effective_vehicle(vehicle)
 
 
 @app.post("/api/vehicles/{serial}/ai-draft", tags=["Vehicles"])
@@ -397,8 +422,13 @@ def update_manual_mileage(serial: str, payload: ManualMileageUpdate) -> dict[str
 
     if vehicle is None:
         raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
-    return vehicle
+    return effective_vehicle(vehicle)
 
+
+
+def _rule_names_for(serial: str) -> set[str]:
+    current = find_vehicle(serial)
+    return rule_recommendation_names(current) if current else set()
 
 @app.post("/api/vehicles/{serial}/services", tags=["Vehicles"])
 def record_service(serial: str, payload: CompletedServiceRecord) -> dict[str, Any]:
@@ -417,12 +447,13 @@ def record_service(serial: str, payload: CompletedServiceRecord) -> dict[str, An
             payload.mileage,
             payload.detail,
             payload.recommendation_name,
+            completable_rule_names=_rule_names_for(serial) if payload.recommendation_name else None,
         )
     except UnknownRecommendationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if vehicle is None:
         raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
-    return vehicle
+    return effective_vehicle(vehicle)
 
 
 def _edit_result(action: Callable[[], dict[str, Any] | None]) -> dict[str, Any]:
@@ -435,7 +466,7 @@ def _edit_result(action: Callable[[], dict[str, Any] | None]) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if vehicle is None:
         raise HTTPException(status_code=404, detail="No synthetic vehicle record found.")
-    return vehicle
+    return effective_vehicle(vehicle)
 
 
 def _check_year(year: int) -> None:
@@ -499,6 +530,43 @@ def remove_vehicle_recommendation(
 ) -> dict[str, Any]:
     """Remove one recommendation; `expectedName` must match."""
     return _edit_result(lambda: delete_recommendation(serial, index, expected_name))
+
+
+def _rule_result(action: Callable[[], dict[str, Any] | None]) -> dict[str, Any]:
+    try:
+        rule = action()
+    except RuleConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RuleValidation as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RulesUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if rule is None:
+        raise HTTPException(status_code=404, detail="No maintenance rule with that id.")
+    return rule
+
+
+@app.get("/api/rules", tags=["Rules"])
+def list_rules() -> dict[str, Any]:
+    """List the editable demo maintenance rules, or report that the rules migration is not applied."""
+    try:
+        return {"status": "active", "rules": load_rules()}
+    except RulesUnavailable as exc:
+        return {"status": "unavailable", "detail": str(exc), "rules": []}
+
+
+@app.post("/api/rules", tags=["Rules"], status_code=201)
+def create_rule(payload: RuleInput) -> dict[str, Any]:
+    """Add a demo maintenance rule (miles since last service). Logged in the rule's change log."""
+    return _rule_result(lambda: add_rule(payload.service_name, payload.coming_up_miles, payload.due_miles, payload.safety))
+
+
+@app.put("/api/rules/{rule_id}", tags=["Rules"])
+def edit_rule(rule_id: str, payload: RuleUpdate) -> dict[str, Any]:
+    """Edit a rule (or disable it). `expectedUpdatedAt` must match; stale edits return 409."""
+    return _rule_result(lambda: update_rule(rule_id, payload.expected_updated_at, payload.service_name,
+                                            payload.coming_up_miles, payload.due_miles, payload.safety, payload.enabled))
+
 
 # MCP endpoint: http://127.0.0.1:8000/mcp
 app.mount("/mcp", mcp_http_app)

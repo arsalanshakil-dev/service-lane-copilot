@@ -18,6 +18,8 @@ from typing import Any, Literal
 
 from .local_agent import OllamaRequestError, _ollama_request, list_local_models
 from .mcp_server import create_customer_draft
+from .service_names import matches_service as _matches_service
+from .service_names import normalized_name as _normalized
 
 DraftType = Literal["explanation", "quote", "followup"]
 
@@ -33,12 +35,6 @@ PRICE_PATTERN = re.compile(
 REPEAT_FLOOR_MILES = 1_000
 REPEAT_FLOOR_DAYS = 30
 MAX_INTERVAL_MILES = 200_000
-# Generic words ignored when matching a suggestion to a recorded service ("Wiper blade check" ~ "Wiper blades").
-GENERIC_SERVICE_WORDS = {
-    "and", "the", "of", "for", "check", "checks", "inspection", "inspect", "service", "services",
-    "replacement", "replace", "change", "condition", "verification", "verify", "test", "level",
-    "levels", "system", "routine", "new",
-}
 SAFETY_PATTERN = re.compile(
     r"brake|tire|tyre|steering|suspension|airbag|seat ?belt|recall|headlight|tail ?light|"
     r"\blights?\b|\blamps?\b|leak|wiper",
@@ -214,9 +210,6 @@ def _limitation(vehicle: dict[str, Any], purpose: str = "requesting AI suggestio
     return None
 
 
-def _normalized(name: str) -> str:
-    words = re.sub(r"[^a-z0-9 ]", " ", name.lower().replace("&", " and "))
-    return " ".join(words.split())
 
 
 def _is_duplicate(name: str, existing: list[str]) -> bool:
@@ -228,17 +221,8 @@ def _is_duplicate(name: str, existing: list[str]) -> bool:
     )
 
 
-def _service_keywords(name: str) -> set[str]:
-    words = {word.rstrip("s") if len(word) > 3 else word for word in _normalized(name).split()}
-    return {word for word in words if word and word not in GENERIC_SERVICE_WORDS}
 
 
-def _matches_service(suggestion_name: str, event_name: str) -> bool:
-    """True when a suggestion names the same service as a recorded history event."""
-    suggestion, event = _service_keywords(suggestion_name), _service_keywords(event_name)
-    if not suggestion or not event:
-        return False
-    return suggestion <= event or event <= suggestion
 
 
 def _interval_estimate(value: Any) -> int | None:

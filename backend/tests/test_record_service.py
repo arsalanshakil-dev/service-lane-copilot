@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import isolation  # noqa: F401  (must run before app imports)
+
 import copy
 import unittest
 from datetime import date, timedelta
@@ -65,7 +67,7 @@ class RecordServiceTests(unittest.TestCase):
     def test_completing_a_recommendation_persists_history_status_and_mileage(self) -> None:
         returned = record_service(SERIAL, payload())
         stored = self.stored()
-        self.assertEqual(returned, stored)
+        self.assertEqual({k: v for k, v in returned.items() if k != "rulesStatus"}, stored)
 
         newest = stored["history"][0]
         self.assertEqual(newest["date"], "May 01, 2026")

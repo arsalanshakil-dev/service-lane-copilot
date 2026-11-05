@@ -4,10 +4,13 @@ import { FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import ChatPanel, { RECORD_CHANGED_EVENT } from "./chat-panel";
 import { useAiModel } from "./ai-model";
 import { browserTimeZone, formatDateTime, formatTimeOfDay, supportedTimeZones, useThemePref, useTimeZone, type ThemePref } from "./display-prefs";
+import { MaintenanceRulesPanel } from "./rules-settings";
 import { AddVehicleForm, ChangeLog, HistoryRows, VehicleDetailsForm, useRecommendationEditor, type ChangeLogEntry } from "./record-editors";
 
 type Recommendation = {
   source?: string;
+  index?: number;
+  ruleId?: string;
   name: string;
   status: string;
   kind: string;
@@ -45,6 +48,7 @@ type Vehicle = {
   incomplete?: boolean;
   conflicting?: boolean;
   changeLog?: ChangeLogEntry[];
+  rulesStatus?: "active" | "unavailable";
 };
 
 type DraftKind = "explanation" | "quote" | "followup";
@@ -128,7 +132,7 @@ function SettingsView() {
 
   return (
     <section className="settings-view" aria-labelledby="settings-title">
-      <div className="page-heading"><div><p className="eyebrow">SETTINGS</p><h1 id="settings-title">Settings</h1><p className="page-subtitle">Choices here apply to the whole app in this browser.</p></div></div>
+      <div className="page-heading"><div><p className="eyebrow">SETTINGS</p><h1 id="settings-title">Settings</h1><p className="page-subtitle">AI model, appearance, and time zone are saved in this browser. Maintenance rules apply to everyone.</p></div></div>
       <div className="panel settings-panel">
         <div className="panel-title-row"><div><h3>AI model</h3><div className="panel-subtitle">Used by Ask Copilot, AI drafts, AI suggestions, and record summaries</div></div><span className="draft-type">LOCAL OLLAMA</span></div>
         <div className="settings-field">
@@ -144,6 +148,7 @@ function SettingsView() {
         </div>
         <p className="disclaimer">Models run on this computer through Ollama at 127.0.0.1:11434; nothing is sent to a cloud service. Larger models are slower on CPU-only machines. The choice is saved in this browser.</p>
       </div>
+      <MaintenanceRulesPanel />
       <div className="panel settings-panel">
         <div className="panel-title-row"><div><h3>Appearance</h3><div className="panel-subtitle">Light, dark, or follow this computer's setting</div></div><span className="draft-type">THIS BROWSER</span></div>
         <div className="settings-field" role="radiogroup" aria-label="Theme">
@@ -738,8 +743,9 @@ export default function Home() {
             {(vehicle.mileage == null || manualMileageOpen) && <section className="manual-mileage" aria-labelledby="manual-mileage-title"><div><h3 id="manual-mileage-title">{vehicle.mileage == null ? "Enter current mileage" : "Replace current mileage"}</h3><p>{vehicle.mileage == null ? "No odometer reading is available. Record a manual reading for this synthetic vehicle." : "Enter an advisor-confirmed reading to replace the current synthetic mileage. The previous value is not retained."}</p></div><form className="manual-mileage-form" onSubmit={saveManualMileage}><label>Odometer miles<input type="number" min="0" step="1" inputMode="numeric" required value={manualMileage} onChange={(event) => setManualMileage(event.target.value)} placeholder="e.g. 48,120" /></label><label>Reading date<input type="date" required value={manualMileageDate} onChange={(event) => setManualMileageDate(event.target.value)} /></label><label>Reading source<select value={manualMileageSource} onChange={(event) => setManualMileageSource(event.target.value as "advisor_observed" | "customer_reported")}><option value="advisor_observed">Advisor-observed</option><option value="customer_reported">Customer-reported</option></select></label><button className="primary-button manual-mileage-submit" type="submit" disabled={savingMileage}>{savingMileage ? "Saving…" : "Save mileage"}</button></form><p className="manual-mileage-note">Saving replaces the current mileage field. Earlier mileage is not retained. Recommendations remain paused if service-history evidence is incomplete or conflicting.</p></section>}
             {incomplete && <><div className="warning-banner"><b>!</b><span>{vehicle.conflicting ? "Mileage conflict: a recorded service mileage is higher than the current odometer reading. Reconcile the records before using service timing." : vehicle.mileage != null && vehicle.completeness === "History incomplete" ? "Current mileage is recorded, but service history is incomplete or missing event mileage. Recommendations remain paused until the advisor can verify supporting history; do not infer a due service." : vehicle.mileage != null ? "The mileage record is old, so service timing cannot be confirmed. Ask the customer for the current odometer reading and verify the record." : "Mileage is missing and service history is incomplete. Do not infer a due service from this record. Get a current odometer reading and request the missing history."}</span></div><div className="path-grid record-paths"><article className="path-card"><h3>Update dealership service record</h3><p>Prepare an intake draft to confirm vehicle details, mileage, and missing service history.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for advisor review. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</>}
             <div className="section-heading"><h3>{incomplete ? "Recommendations" : "Service recommendations"}</h3><span className="history-actions"><span className="count-badge">{incomplete ? "Evidence needed" : `${vehicle.recs.length} ${vehicle.recs.length === 1 ? "item" : "items"} to review`}</span>{!incomplete && <button className="copy-button" type="button" onClick={recEditor.startAdd}>+ Add recommendation</button>}</span></div>
+            {vehicle.rulesStatus === "unavailable" && <div className="warning-banner"><b>!</b><span>Maintenance rules are not set up yet, so stored recommendations are shown. Apply the rules migration (see README → “Maintenance rules”) to compute Due / Coming up from history and mileage.</span></div>}
             {!incomplete && recEditor.addForm()}
-            {incomplete ? <div className="evidence">{vehicle.mileage == null ? "Recommendations are paused until a current mileage reading and relevant service history are verified." : "Manual mileage is saved, but service-history evidence is still incomplete. Recommendations remain paused until the advisor can verify it."}</div> : vehicle.recs.length ? vehicle.recs.map((rec, index) => <div key={`${rec.name}-${index}`}><RecommendationCard rec={rec} onComplete={rec.kind === "done" ? undefined : () => openServiceForm(rec.name)} onEdit={() => recEditor.startEdit(index)} onRemove={() => recEditor.startRemove(index)} />{recEditor.editorFor(index)}{serviceForm?.recommendationName === rec.name && <ServiceForm form={serviceForm} saving={savingService} onChange={setServiceForm} onSubmit={saveService} onCancel={() => setServiceForm(null)} />}</div>) : <div className="evidence">No items match the configured demo rules. This does not replace review against an approved maintenance schedule.</div>}
+            {incomplete ? <div className="evidence">{vehicle.mileage == null ? "Recommendations are paused until a current mileage reading and relevant service history are verified." : "Manual mileage is saved, but service-history evidence is still incomplete. Recommendations remain paused until the advisor can verify it."}</div> : vehicle.recs.length ? vehicle.recs.map((rec, index) => <div key={`${rec.name}-${index}`}><RecommendationCard rec={rec} onComplete={rec.kind === "done" ? undefined : () => openServiceForm(rec.name)} onEdit={storedIndex(rec, index, vehicle) === null ? undefined : () => recEditor.startEdit(storedIndex(rec, index, vehicle) as number)} onRemove={storedIndex(rec, index, vehicle) === null ? undefined : () => recEditor.startRemove(storedIndex(rec, index, vehicle) as number)} />{storedIndex(rec, index, vehicle) !== null && recEditor.editorFor(storedIndex(rec, index, vehicle) as number)}{serviceForm?.recommendationName === rec.name && <ServiceForm form={serviceForm} saving={savingService} onChange={setServiceForm} onSubmit={saveService} onCancel={() => setServiceForm(null)} />}</div>) : <div className="evidence">No items match the configured demo rules. This does not replace review against an approved maintenance schedule.</div>}
             <AiSuggestionsSection
               result={aiSuggestions}
               busy={aiSuggestBusy}
@@ -780,10 +786,17 @@ function AiSuggestionsSection({ result, busy, error, model, modelsError, onSugge
   );
 }
 
+/** Stored position used by edit/remove; null for rule-computed items (edited in Settings). */
+function storedIndex(rec: Recommendation, position: number, vehicle: Vehicle): number | null {
+  if (rec.source === "rule") return null;
+  if (typeof rec.index === "number") return rec.index;
+  return vehicle.rulesStatus === "active" ? null : position;
+}
+
 function RecommendationCard({ rec, onComplete, onEdit, onRemove }: { rec: Recommendation; onComplete?: () => void; onEdit?: () => void; onRemove?: () => void }) {
   const done = rec.kind === "done";
   const kind = done ? "done" : rec.kind === "safety" ? "safety" : rec.status === "Not yet due" ? "neutral" : rec.kind;
-  return <article className={`recommendation ${done ? "completed" : ""}`}><div className="rec-top"><span className="rec-title">{done && <span aria-hidden="true">✓ </span>}{rec.name}{rec.source === "advisor_entered" && <span className="edited-tag">Advisor-entered</span>}</span><span className={`status ${kind}`}>{rec.status}</span></div><p className="rec-copy">{rec.text}</p><div className="evidence"><strong>{done ? "Completion record" : "Why it appears"}</strong><br />{rec.evidence}</div><p className="source-note">{rec.rule}</p>{rec.safety && !done && <div className="warning-banner"><b>!</b><span>Safety-related: verify against an approved source before discussing or recommending work.</span></div>}{(onComplete || onEdit || onRemove) && <div className="rec-actions">{onEdit && <button className="copy-button" type="button" onClick={onEdit}>Edit</button>}{onRemove && <button className="copy-button danger-button" type="button" onClick={onRemove}>Remove</button>}{onComplete && <button className="copy-button" type="button" onClick={onComplete}>✓ Mark as done</button>}</div>}</article>;
+  return <article className={`recommendation ${done ? "completed" : ""}`}><div className="rec-top"><span className="rec-title">{done && <span aria-hidden="true">✓ </span>}{rec.name}{rec.source === "advisor_entered" && <span className="edited-tag">Advisor-entered</span>}{rec.source === "rule" && <span className="edited-tag rule-tag">Demo rule</span>}</span><span className={`status ${kind}`}>{rec.status}</span></div><p className="rec-copy">{rec.text}</p><div className="evidence"><strong>{done ? "Completion record" : "Why it appears"}</strong><br />{rec.evidence}</div><p className="source-note">{rec.rule}</p>{rec.safety && !done && <div className="warning-banner"><b>!</b><span>Safety-related: verify against an approved source before discussing or recommending work.</span></div>}{(onComplete || onEdit || onRemove || rec.source === "rule") && <div className="rec-actions">{rec.source === "rule" && <a className="copy-button" href="#settings" title="Rules are edited in Settings">Edit rule</a>}{onEdit && <button className="copy-button" type="button" onClick={onEdit}>Edit</button>}{onRemove && <button className="copy-button danger-button" type="button" onClick={onRemove}>Remove</button>}{onComplete && <button className="copy-button" type="button" onClick={onComplete}>✓ Mark as done</button>}</div>}</article>;
 }
 
 function ServiceForm({ form, saving, onChange, onSubmit, onCancel }: { form: ServiceFormState; saving: boolean; onChange: (form: ServiceFormState) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onCancel: () => void }) {

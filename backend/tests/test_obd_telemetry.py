@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import isolation  # noqa: F401  (must run before app imports)
+
 import copy
 import unittest
 from datetime import datetime
@@ -20,18 +22,30 @@ EXPECTED_STREAMS = {
 
 
 class FakeSupabase:
-    def __init__(self, rows: list[dict]) -> None:
+    """In-memory stand-in for the Supabase client used by the backend.
+
+    `rows` is the vehicle_records table keyed by serial. Pass `rules` to provide a
+    service_rules table (keyed by id); without it the table behaves as not migrated.
+    """
+
+    def __init__(self, rows: list[dict], rules: list[dict] | None = None) -> None:
         self.rows = {row["serial"]: copy.deepcopy(row) for row in rows}
+        self.rules = None if rules is None else {rule["id"]: copy.deepcopy(rule) for rule in rules}
 
     def table(self, name: str) -> "FakeQuery":
-        if name != data_store.VEHICLE_TABLE:
-            raise AssertionError(f"Unexpected table: {name}")
-        return FakeQuery(self)
+        if name == data_store.VEHICLE_TABLE:
+            return FakeQuery(self.rows, "serial")
+        if name == "service_rules":
+            if self.rules is None:
+                raise RuntimeError("relation \"public.service_rules\" does not exist")
+            return FakeQuery(self.rules, "id")
+        raise AssertionError(f"Unexpected table: {name}")
 
 
 class FakeQuery:
-    def __init__(self, client: FakeSupabase) -> None:
-        self.client = client
+    def __init__(self, table: dict, key: str) -> None:
+        self.table_rows = table
+        self.key = key
         self.operation = "select"
         self.filters: dict[str, object] = {}
         self.payload: dict | None = None
@@ -70,25 +84,25 @@ class FakeQuery:
     def execute(self) -> SimpleNamespace:
         if self.operation == "insert":
             assert self.payload is not None
-            if self.payload["serial"] in self.client.rows:
+            if self.payload[self.key] in self.table_rows:
                 raise RuntimeError("duplicate key value violates unique constraint")
-            self.client.rows[self.payload["serial"]] = copy.deepcopy(self.payload)
+            self.table_rows[self.payload[self.key]] = copy.deepcopy(self.payload)
             return SimpleNamespace(data=[copy.deepcopy(self.payload)])
         if self.operation == "delete":
-            serial = self.filters.get("serial")
-            removed = self.client.rows.pop(serial, None) if isinstance(serial, str) else None
+            key = self.filters.get(self.key)
+            removed = self.table_rows.pop(key, None) if isinstance(key, str) else None
             return SimpleNamespace(data=[removed] if removed else [])
         if self.operation == "update":
-            serial = self.filters.get("serial")
-            if not isinstance(serial, str) or serial not in self.client.rows:
+            key = self.filters.get(self.key)
+            if not isinstance(key, str) or key not in self.table_rows:
                 return SimpleNamespace(data=[])
             assert self.payload is not None
-            self.client.rows[serial].update(copy.deepcopy(self.payload))
-            return SimpleNamespace(data=[{"serial": serial}])
+            self.table_rows[key].update(copy.deepcopy(self.payload))
+            return SimpleNamespace(data=[{self.key: key}])
 
         rows = [
             copy.deepcopy(row)
-            for row in self.client.rows.values()
+            for row in self.table_rows.values()
             if all(row.get(key) == value for key, value in self.filters.items())
         ]
         if self.order_by is not None:

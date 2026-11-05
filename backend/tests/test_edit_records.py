@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import isolation  # noqa: F401  (must run before app imports)
+
 import copy
 import unittest
 from datetime import date, timedelta
@@ -74,7 +76,9 @@ class EditRecordsTests(unittest.TestCase):
         created = add_vehicle(NewVehicle(serial=" new-car-1 ", make="Ironvale", model="Forge", year=2024,
                                          mileage=1200, mileageDate=date.today().isoformat()))
         stored = self.stored("NEW-CAR-1")
-        self.assertEqual(created, stored)
+        # Responses add the display-only rulesStatus (issue #47); the stored record is unchanged.
+        self.assertEqual({k: v for k, v in created.items() if k != "rulesStatus"}, stored)
+        self.assertEqual(created["rulesStatus"], "unavailable")
         self.assertEqual(stored["serial"], "NEW-CAR-1")
         self.assertEqual((stored["history"], stored["recs"]), ([], []))
         self.assertTrue(stored["incomplete"])

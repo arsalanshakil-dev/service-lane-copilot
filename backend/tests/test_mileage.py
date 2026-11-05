@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import isolation  # noqa: F401  (must run before app imports)
+
 import unittest
 from datetime import date, timedelta
 from unittest.mock import patch
@@ -25,7 +27,7 @@ class MileageApiTests(unittest.TestCase):
         with patch("app.main.update_vehicle_mileage", return_value=expected) as update:
             result = update_manual_mileage("TEST-001", self.valid_payload())
 
-        self.assertEqual(result, expected)
+        self.assertEqual({k: v for k, v in result.items() if k != "rulesStatus"}, expected)
         update.assert_called_once_with(
             "TEST-001",
             24_000,

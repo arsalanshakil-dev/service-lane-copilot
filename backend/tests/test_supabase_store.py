@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import isolation  # noqa: F401  (must run before app imports)
+
 import copy
 import json
 import tempfile
@@ -128,7 +130,9 @@ class SupabaseVehicleStoreTests(unittest.TestCase):
         self.assertIsNone(data_store.find_vehicle("UNKNOWN"))
 
     def test_rest_vehicle_lookup_reads_supabase_and_unknown_is_404(self) -> None:
-        self.assertEqual(get_vehicle("TEST-001"), self.record)
+        shown = get_vehicle("TEST-001")
+        self.assertEqual({k: v for k, v in shown.items() if k != "rulesStatus"}, self.record)
+        self.assertEqual(shown["rulesStatus"], "unavailable")  # the fake database has no rules table
         with self.assertRaises(HTTPException) as raised:
             get_vehicle("UNKNOWN")
         self.assertEqual(raised.exception.status_code, 404)

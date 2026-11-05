@@ -7,7 +7,7 @@ import { FormEvent, useState } from "react";
 import { formatDateTime, useTimeZone } from "./display-prefs";
 
 export type EditableHistoryEvent = { date: string; name: string; detail: string; mileage: string; source?: string; edited?: boolean };
-export type EditableRecommendation = { name: string; status: string; kind: string; text: string; evidence: string; rule: string; safety?: boolean; source?: string };
+export type EditableRecommendation = { name: string; status: string; kind: string; text: string; evidence: string; rule: string; safety?: boolean; source?: string; index?: number };
 export type ChangeLogEntry = { at: string; action: string; actor: string; summary: string };
 export type EditableVehicle = {
   serial: string;
@@ -272,7 +272,8 @@ export function useRecommendationEditor(vehicle: EditableVehicle | null, onSaved
 
   function editorFor(index: number) {
     if (!vehicle) return null;
-    const rec = vehicle.recs[index];
+    const rec = vehicle.recs.find((item) => item.index === index) ?? (vehicle.recs.every((item) => item.index === undefined) ? vehicle.recs[index] : undefined);
+    if (!rec) return null;
     if (mode?.kind === "edit" && mode.index === index) {
       return <RecommendationForm title={`Edit “${rec.name}”`} initial={{ name: rec.name, status: REC_STATUSES.includes(rec.status as (typeof REC_STATUSES)[number]) ? rec.status : "Due", text: rec.text, evidence: rec.evidence, safety: Boolean(rec.safety) }} busy={busy} error={error}
         onCancel={() => { setMode(null); setError(""); }}

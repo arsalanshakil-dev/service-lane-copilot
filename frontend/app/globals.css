@@ -311,3 +311,12 @@ html[data-theme="dark"] .copy-button.meta-action,html[data-theme="dark"] a.copy-
 .app-shell.sidebar-hidden .sidebar{display:none}
 .app-shell.sidebar-hidden .main-content{margin-left:0;max-width:none}
 @media(max-width:760px){.sidebar-toggle{display:none}}
+
+/* Maintenance rules (issue #47) */
+.rule-tag{color:#2f6b52;background:#e6f2ec}
+.rules-table td{white-space:nowrap}
+.rules-table tr.rule-disabled td{color:var(--muted)}
+.rules-actions{margin-top:12px}
+.rules-panel .records-table-wrap{box-shadow:none;margin-top:4px}
+.warning-banner code{font-size:12px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px}
+html[data-theme="dark"] .rule-tag{background:#1f3a2e;color:#a8dcc0}

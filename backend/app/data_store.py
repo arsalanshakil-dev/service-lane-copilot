@@ -136,7 +136,10 @@ def list_vehicle_summaries(query: str = "", limit: int = 25, offset: int = 0) ->
 
     Matches serial, make, model, or year (case-insensitive). Read-only.
     """
+    from .rules_engine import effective_vehicle, try_load_rules  # local import: rules_engine imports this module
+
     term = query.strip().casefold()
+    rules = try_load_rules()
     matches = []
     for vehicle in sorted(load_vehicles().values(), key=lambda item: item["serial"]):
         searchable = " ".join(
@@ -144,7 +147,7 @@ def list_vehicle_summaries(query: str = "", limit: int = 25, offset: int = 0) ->
         ).casefold()
         if term and term not in searchable:
             continue
-        recs = vehicle.get("recs") or []
+        recs = (effective_vehicle(vehicle, rules, load=False) or vehicle).get("recs") or []
         matches.append(
             {
                 "serial": vehicle["serial"],
@@ -268,6 +271,7 @@ def record_completed_service(
     detail: str = "",
     recommendation_name: str | None = None,
     actor: str = WEB_ACTOR,
+    completable_rule_names: set[str] | None = None,
 ) -> dict[str, Any] | None:
     """Record an advisor-completed service in a known record and save it to Supabase.
 
@@ -290,7 +294,8 @@ def record_completed_service(
         recs = [dict(rec) for rec in current.get("recs", [])]
         if recommendation_name is not None:
             matches = [rec for rec in recs if rec.get("name") == recommendation_name]
-            if not matches:
+            # A rule-computed item (issue #47) is not stored; recording the service makes it recompute.
+            if not matches and recommendation_name not in (completable_rule_names or set()):
                 raise UnknownRecommendationError(
                     "That recommendation is not on this vehicle record."
                 )
