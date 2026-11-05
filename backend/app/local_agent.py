@@ -119,7 +119,7 @@ def _resource_uri_allowed(uri: str, fixed_uris: set[str], templates: list[str]) 
         return True
     for template in templates:
         pattern = re.escape(template)
-        pattern = re.sub(r"\\\\\{[^{}]+\\\\\}", r"[^/]+", pattern)
+        pattern = "^" + "[^/]+".join(re.escape(part) for part in re.split(r"\{[^{}]+\}", template)) + "$"
         if re.fullmatch(pattern, uri):
             return True
     return False
