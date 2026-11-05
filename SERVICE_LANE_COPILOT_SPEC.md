@@ -50,7 +50,7 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 1. Advisor enters a vehicle serial number on an intuitive web page.
 2. The app searches the synthetic dealership service-record dataset.
 3. For a match in the demo, the app displays synthetic vehicle details, recorded mileage, service history, and data timing. A later connected version may prefill vehicle identity and available odometer data from an OBD-II/CAN adapter.
-4. The Python API returns the selected vehicle’s structured, synthetic recommendation examples from the JSON dataset, including status, demo rule text, and record evidence. The app does not calculate real service intervals.
+4. The Python API returns the selected vehicle’s structured, synthetic recommendation examples from the Supabase record, including status, demo rule text, and record evidence. The app does not calculate real service intervals.
 5. The app flags safety-related items distinctly and tells the advisor to verify them against an approved source.
 6. The app can prepare editable drafts of a customer explanation, quote, and follow-up message. Drafts are never sent or booked automatically.
 7. If there is no match or the record is incomplete, the app explains what is missing and offers two paths:
