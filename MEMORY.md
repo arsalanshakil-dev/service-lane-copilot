@@ -27,7 +27,7 @@ This file is a continuity summary, not a requirements document. Product requirem
 - In-app chat exposes `GET /api/chat/models` and `POST /api/chat`; model discovery and inference are fixed to Ollama at `http://127.0.0.1:11434` with no cloud fallback.
 - `backend/app/local_agent.py` discovers MCP tools and resources in-process with the pinned MCP SDK, passes tool schemas to Ollama, reads advertised resources, and limits each turn to six tool rounds/twelve tool calls. It refuses an answer when the model uses no MCP capability.
 - `frontend/app/chat-panel.tsx` keeps chat history in browser state only, offers models reported by local Ollama, and shows MCP capabilities used. Chat is not persisted server-side.
-- OBD-II/CAN is future scope. This demo has no physical vehicle connection. VIN may be available through OBD-II; odometer support varies; service history is a separate source.
+- Every synthetic vehicle now includes four demo telemetry streams: engine RPM (rpm), vehicle speed (km/h), coolant temperature (°C), and calculated engine load (%), each with four timestamped samples. The advisor page shows charts and an explicit simulated badge. MCP and local Ollama instructions prohibit treating these values as live OBD-II or recommendation evidence. No physical adapter/vehicle connection exists; live OBD-II/CAN remains future scope.
 
 ## Local run commands
 

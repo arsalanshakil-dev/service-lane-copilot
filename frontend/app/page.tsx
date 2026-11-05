@@ -20,6 +20,10 @@ type HistoryEvent = {
   mileage: string;
 };
 
+type TelemetrySample = { timestamp: string; value: number };
+type TelemetryStream = { key: string; label: string; unit: string; samples: TelemetrySample[] };
+type ObdTelemetry = { mode: "simulated"; status: "simulated"; source: string; capturedAt: string; notice: string; streams: TelemetryStream[] };
+
 type Vehicle = {
   serial: string;
   make: string;
@@ -31,6 +35,7 @@ type Vehicle = {
   completeness: string;
   history: HistoryEvent[];
   recs: Recommendation[];
+  obdTelemetry?: ObdTelemetry;
   incomplete?: boolean;
   conflicting?: boolean;
 };
@@ -85,6 +90,41 @@ async function copyText(value: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function formatTelemetryTime(timestamp: string): string {
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) return "Time unavailable";
+  return `${parsed.toLocaleTimeString("en-PK", { timeZone: "Asia/Karachi", hour: "2-digit", minute: "2-digit" })} PKT`;
+}
+
+function TelemetryPanel({ telemetry }: { telemetry?: ObdTelemetry }) {
+  const streams = telemetry?.streams ?? [];
+  return (
+    <section className="obd-card" aria-labelledby="obd-title">
+      <div className="obd-panel-header"><div><h3 id="obd-title">OBD-II telemetry</h3><p>Simulated sample streams for the POC</p></div><span className="obd-simulated-badge">SIMULATED</span></div>
+      <p className="obd-notice">{telemetry?.notice ?? "No simulated telemetry samples available."} These values are not live vehicle readings and are not used for mileage or service recommendations.</p>
+      {streams.length === 0 ? <div className="obd-empty">No simulated telemetry samples available.</div> : <div className="obd-stream-grid">{streams.map((stream) => {
+        const samples = stream.samples.filter((sample) => Number.isFinite(sample.value));
+        if (samples.length === 0) return <article className="obd-stream" key={stream.key}><h4>{stream.label}</h4><p>No simulated samples available.</p></article>;
+        const values = samples.map((sample) => sample.value);
+        const min = Math.min(...values);
+        const range = Math.max(1, Math.max(...values) - min);
+        const points = samples.map((sample, index) => {
+          const x = samples.length === 1 ? 0 : (index / (samples.length - 1)) * 100;
+          const y = 32 - ((sample.value - min) / range) * 24;
+          return `${x},${y}`;
+        }).join(" ");
+        const latest = samples[samples.length - 1];
+        return <article className="obd-stream" key={stream.key}>
+          <div className="obd-stream-title"><h4>{stream.label}</h4><strong>{latest.value.toLocaleString()} <small>{stream.unit}</small></strong></div>
+          <svg className="obd-chart" viewBox="0 0 100 36" preserveAspectRatio="none" role="img" aria-label={`Simulated trend for ${stream.label}`}><polyline points={points} /></svg>
+          <p>{samples.length} simulated samples · Latest {formatTelemetryTime(latest.timestamp)}</p>
+        </article>;
+      })}</div>}
+      <div className="obd-source-note">Source: synthetic demo generator · No adapter connected</div>
+    </section>
+  );
 }
 
 export default function Home() {
@@ -238,6 +278,7 @@ export default function Home() {
           <section className="vehicle-card">
             <div className="vehicle-top"><div className="vehicle-ident"><div className="car-badge">▰</div><div><h2>{vehicle.year} {vehicle.make} {vehicle.model}</h2><p>Serial number {vehicle.serial}</p></div></div><span className={`record-pill ${incomplete ? "incomplete" : ""}`}>{vehicle.completeness}</span></div>
             <div className="vehicle-meta"><div><div className="meta-label">CURRENT MILEAGE</div><div className="meta-value">{formatMiles(vehicle.mileage)}</div><div className="meta-sub">{vehicle.mileageDate}{vehicle.mileageSource ? ` · ${vehicle.mileageSource === "advisor_observed" ? "Advisor-observed" : "Customer-reported"}` : ""}</div></div><div><div className="meta-label">HISTORY EVENTS</div><div className="meta-value">{vehicle.history.length} recorded</div><div className="meta-sub">Synthetic dealer record</div></div><div><div className="meta-label">RECORD STATUS</div><div className="meta-value">{incomplete ? "Needs attention" : "Ready to review"}</div><div className="meta-sub">Synthetic dataset</div></div></div>
+            <TelemetryPanel telemetry={vehicle.obdTelemetry} />
             {vehicle.mileage != null && <div className="manual-mileage-actions"><button className="copy-button" type="button" onClick={() => setManualMileageOpen((open) => !open)}>{manualMileageOpen ? "Cancel mileage update" : "Update mileage"}</button></div>}
             {(vehicle.mileage == null || manualMileageOpen) && <section className="manual-mileage" aria-labelledby="manual-mileage-title"><div><h3 id="manual-mileage-title">{vehicle.mileage == null ? "Enter current mileage" : "Replace current mileage"}</h3><p>{vehicle.mileage == null ? "No odometer reading is available. Record a manual reading for this synthetic vehicle." : "Enter an advisor-confirmed reading to replace the current synthetic mileage. The previous value is not retained."}</p></div><form className="manual-mileage-form" onSubmit={saveManualMileage}><label>Odometer miles<input type="number" min="0" step="1" inputMode="numeric" required value={manualMileage} onChange={(event) => setManualMileage(event.target.value)} placeholder="e.g. 48,120" /></label><label>Reading date<input type="date" required value={manualMileageDate} onChange={(event) => setManualMileageDate(event.target.value)} /></label><label>Reading source<select value={manualMileageSource} onChange={(event) => setManualMileageSource(event.target.value as "advisor_observed" | "customer_reported")}><option value="advisor_observed">Advisor-observed</option><option value="customer_reported">Customer-reported</option></select></label><button className="primary-button manual-mileage-submit" type="submit" disabled={savingMileage}>{savingMileage ? "Saving…" : "Save mileage"}</button></form><p className="manual-mileage-note">Saving replaces the current mileage field. Earlier mileage is not retained. Recommendations remain paused if service-history evidence is incomplete or conflicting.</p></section>}
             {incomplete && <><div className="warning-banner"><b>!</b><span>{vehicle.conflicting ? "Mileage conflict: a recorded service mileage is higher than the current odometer reading. Reconcile the records before using service timing." : vehicle.mileage != null && vehicle.completeness === "History incomplete" ? "Current mileage is recorded, but service history is incomplete or missing event mileage. Recommendations remain paused until the advisor can verify supporting history; do not infer a due service." : vehicle.mileage != null ? "The mileage record is old, so service timing cannot be confirmed. Ask the customer for the current odometer reading and verify the record." : "Mileage is missing and service history is incomplete. Do not infer a due service from this record. Get a current odometer reading and request the missing history."}</span></div><div className="path-grid record-paths"><article className="path-card"><h3>Update dealership service record</h3><p>Prepare an intake draft to confirm vehicle details, mileage, and missing service history.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "register"))}>Prepare registration draft</button></article><article className="path-card"><h3>Request outside service history</h3><p>Prepare a request for advisor review. No lookup or message is sent.</p><button type="button" onClick={() => setRecordDraft(recordRequestDraft(vehicle, "history"))}>Prepare history request</button></article></div>{recordDraft && <DraftEditor label="Record request draft" value={recordDraft} onChange={setRecordDraft} onCopy={copyRecordDraft} />}</>}
