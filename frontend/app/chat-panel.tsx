@@ -158,7 +158,7 @@ export default function ChatPanel() {
             {messages.length === 0 && (
               <div className="chat-empty">
                 <strong>What would you like to prepare?</strong>
-                <p>Ask about a vehicle, review its service history, or prepare an unsent customer draft.</p>
+                <p>Ask about a vehicle, review its service history, or prepare an unsent customer draft. This assistant answers dealership service questions only, not general questions.</p>
                 <span>Try: “Look up NS-2048 and explain what may be coming up.”</span>
               </div>
             )}
@@ -178,7 +178,7 @@ export default function ChatPanel() {
               id="chat-message"
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask about a vehicle or draft…"
+              placeholder="Ask about a vehicle, its service, or a draft…"
               rows={2}
               maxLength={4_000}
               disabled={loading || !model}

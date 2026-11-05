@@ -28,6 +28,7 @@ Updated: 2026-11-05
 - Show actionable errors when Ollama is unavailable, no local model is installed, or the selected model cannot complete tool use.
 - Distinguish a stopped Ollama service (HTTP 503) from a running model that exceeds the request timeout (HTTP 504, naming the timeout and suggesting a smaller model or a larger `OLLAMA_TIMEOUT_SECONDS`). Ollama errors raised while the in-process MCP client is open must reach these handlers rather than surfacing as a generic HTTP 500.
 - Ground vehicle claims in tool/resource output and preserve the synthetic-data, evidence, uncertainty, and safety boundaries.
+- Topic guardrail (issue #24): the system prompt limits the assistant to dealership service-lane topics and tells it to reply with the exact marker `OUT_OF_SCOPE`, without tools, for anything else. The backend replaces a reply containing the marker (even after tool use) with a fixed refusal and `out_of_scope: true`, and replaces any reply that used no MCP capability with the same scope message plus a hint to include a serial number. The model's off-topic text is never returned.
 - Keep all drafts unsent and editable/copyable by the user.
 
 ### Out of scope
@@ -81,10 +82,11 @@ Updated: 2026-11-05
 10. Conversation history is not persisted by the backend or written to project data.
 11. Chat requests to Ollama set `think: false`.
 12. A local model timeout returns HTTP 504 with a timeout message; an unreachable Ollama returns HTTP 503; neither returns a generic HTTP 500.
+13. Off-topic requests (general knowledge, coding, math, etc.) receive the fixed dealership-service refusal; the model's off-topic text is never shown, and in-scope tool-grounded replies are unchanged.
 
 ## Verification plan
 
-- Automated checks: `backend/tests/test_local_agent.py` covers timeout and connection-failure mapping, unwrapping of Ollama errors raised inside the MCP client, the `think: false` request payload, a grounded MCP tool round-trip against a fake Supabase store, and the 503/504 chat API responses (issue #18).
+- Automated checks: `backend/tests/test_local_agent.py` covers timeout and connection-failure mapping, unwrapping of Ollama errors raised inside the MCP client, the `think: false` request payload, a grounded MCP tool round-trip against a fake Supabase store, and the 503/504 chat API responses (issue #18), plus the topic guardrail: scope text in the system prompt, marker refusal, hidden off-topic text, and marker after tool use (issue #24).
 - Manual review: Verify local model discovery, an MCP search/retrieve flow, resource reading, draft creation, unknown serial handling, and Ollama-down handling when local services are available.
 - Security/data-boundary review: Inspect all model request URLs and tool dispatch; confirm loopback-only inference, no arbitrary URL, no tools outside the MCP registry except the read-only resource reader, and no MCP writes.
 
