@@ -23,6 +23,8 @@ This file is a continuity summary, not a requirements document. Product requirem
 - MCP resources: `service-lane://demo-guide` and `vehicle://{serial}`.
 - MCP tools are read-only. Draft tools return text with `sent: false` / `submitted: false`; they do not contact anyone or change records.
 - Next.js proxies `/api/copilot/*` to FastAPI using `frontend/next.config.ts`.
+- The advisor UI has a light/dark theme toggle in `frontend/app/page.tsx`; the selected value is stored in browser `localStorage` and restored by a `beforeInteractive` script in `frontend/app/layout.tsx`.
+- Theme colors for the shared app surfaces and responsive theme-control styling are in `frontend/app/globals.css`. Default is light when no saved preference exists.
 - OBD-II/CAN is future scope. This demo has no physical vehicle connection. VIN may be available through OBD-II; odometer support varies; service history is a separate source.
 
 ## Local run commands
@@ -49,7 +51,7 @@ Open `http://localhost:3000`. For stdio MCP hosts, launch `<backend>/.venv/Scrip
 ## Verified state and known gaps
 
 - Stack files and setup instructions are present, but the Next.js/FastAPI/MCP runtime has not been launched in this workspace.
-- The Python interpreter is not available in the current project shell; npm also has not been successfully used here. Treat runtime behavior and build status as unverified until checks run in a configured environment.
+- The local command runner did not start for the dark-mode task, so the frontend build and interaction checks were not run. Treat dark-theme runtime behavior and visual contrast as unverified until checks run in a configured environment.
 - The acceptance and verification plan is in `SERVICE_LANE_COPILOT_SPEC.md`. Check which items have actually been automated and run before reporting them as passed.
 - Do not assume the MCP mount, tools, UI, or API are runtime-verified based on source inspection alone.
 - No live OBD-II/CAN integration, dealership history integration, authentication, hosted deployment, or real maintenance catalog exists.

@@ -5,3 +5,35 @@
 .status.neutral{background:#f2f4f3;color:#77827c}
 .lookup-hint{flex-wrap:wrap}
 .record-paths{margin:10px 0 13px}
+
+
+:root{color-scheme:light}
+html[data-theme="dark"]{color-scheme:dark;--ink:#e7eeea;--muted:#a4b0aa;--line:#303d37;--paper:#1b2521;--canvas:#111815;--green:#5fc49a;--green-dark:#77d5ac;--green-pale:#233a30;--amber:#e5b366;--amber-pale:#3a2d1e;--red:#ee9389;--red-pale:#3d2827;--shadow:0 5px 20px rgba(0,0,0,.22)}
+html[data-theme="dark"] body{background:var(--canvas);color:var(--ink)}
+html[data-theme="dark"] .sidebar,html[data-theme="dark"] .lookup-card,html[data-theme="dark"] .welcome-state,html[data-theme="dark"] .vehicle-card,html[data-theme="dark"] .panel,html[data-theme="dark"] .empty-result,html[data-theme="dark"] .date-chip{background:var(--paper);color:var(--ink);border-color:var(--line)}
+html[data-theme="dark"] .brand,html[data-theme="dark"] .page-heading h1,html[data-theme="dark"] .welcome-copy h2,html[data-theme="dark"] .vehicle-ident h2,html[data-theme="dark"] .section-heading h3,html[data-theme="dark"] .panel-title-row h3,html[data-theme="dark"] .empty-result h2,html[data-theme="dark"] .path-card h3,html[data-theme="dark"] .rec-title,html[data-theme="dark"] .meta-value,html[data-theme="dark"] .history-name{color:var(--ink)}
+html[data-theme="dark"] .dealer-switcher,html[data-theme="dark"] .recommendation,html[data-theme="dark"] .path-card,html[data-theme="dark"] .input-wrap input,html[data-theme="dark"] .draft-editor,html[data-theme="dark"] .draft-generated textarea,html[data-theme="dark"] .help-button,html[data-theme="dark"] .copy-button,html[data-theme="dark"] .path-card button,html[data-theme="dark"] .theme-toggle{background:#202c26;color:var(--ink);border-color:#3a4941}
+html[data-theme="dark"] .demo-card,html[data-theme="dark"] .evidence,html[data-theme="dark"] .count-badge,html[data-theme="dark"] .draft-type,html[data-theme="dark"] .soon{background:#222e28;color:#c0ccc5;border-color:#39463f}
+html[data-theme="dark"] .nav-item{color:#bdc8c1}
+html[data-theme="dark"] .nav-item.active{background:var(--green-pale);color:#8ce0b9}
+html[data-theme="dark"] .nav-item.muted,html[data-theme="dark"] .nav-label,html[data-theme="dark"] .breadcrumbs,html[data-theme="dark"] .topbar,html[data-theme="dark"] .page-subtitle,html[data-theme="dark"] .lookup-intro p,html[data-theme="dark"] .dealer-copy small,html[data-theme="dark"] .advisor-profile small,html[data-theme="dark"] .meta-label,html[data-theme="dark"] .meta-sub,html[data-theme="dark"] .vehicle-ident p,html[data-theme="dark"] .history-date,html[data-theme="dark"] .history-detail,html[data-theme="dark"] .history-mileage,html[data-theme="dark"] .panel-subtitle,html[data-theme="dark"] .draft-status,html[data-theme="dark"] .disclaimer,html[data-theme="dark"] .source-note,html[data-theme="dark"] .page-footer,html[data-theme="dark"] .empty-result>p,html[data-theme="dark"] .path-card p,html[data-theme="dark"] .welcome-copy p{color:#a6b2ab}
+html[data-theme="dark"] .topbar,html[data-theme="dark"] .vehicle-meta,html[data-theme="dark"] .history-row,html[data-theme="dark"] .draft-tabs,html[data-theme="dark"] .draft-generated,html[data-theme="dark"] .advisor-profile{border-color:var(--line)}
+html[data-theme="dark"] .breadcrumbs strong,html[data-theme="dark"] .date-chip strong,html[data-theme="dark"] .evidence strong{color:#dce7e0}
+html[data-theme="dark"] .input-wrap input::placeholder{color:#8f9d95}
+html[data-theme="dark"] .input-wrap input:focus,html[data-theme="dark"] .draft-editor:focus{border-color:#5fc49a;box-shadow:0 0 0 3px rgba(95,196,154,.14)}
+html[data-theme="dark"] .draft-tab{color:#a6b2ab}
+html[data-theme="dark"] .draft-tab.active{color:#8ce0b9;border-bottom-color:#5fc49a}
+html[data-theme="dark"] .sample-link{color:#8ce0b9}
+html[data-theme="dark"] .record-pill{background:#233a30;color:#8ce0b9}
+html[data-theme="dark"] .record-pill.incomplete,html[data-theme="dark"] .status.soon{background:#3a2d1e;color:#e5b366}
+html[data-theme="dark"] .status.due,html[data-theme="dark"] .status.safety,html[data-theme="dark"] .empty-icon{background:#3d2827;color:#ee9389}
+html[data-theme="dark"] .warning-banner{background:#392f22;border-color:#5d4b32;color:#e7bd79}
+html[data-theme="dark"] .welcome-art{background:radial-gradient(circle at 52% 52%,#26372f 0,#1b2922 52%,transparent 53%)}
+html[data-theme="dark"] .art-orbit{border-color:#344a3d}
+html[data-theme="dark"] .art-car{background:#385844;color:#9bc8a9;text-shadow:0 4px #2d4837}
+html[data-theme="dark"] .art-car:after{border-color:var(--paper);background:#9bc8a9;box-shadow:39px 0 #9bc8a9,39px 0 0 3px var(--paper)}
+html[data-theme="dark"] .dealer-icon,html[data-theme="dark"] .avatar,html[data-theme="dark"] .lookup-icon,html[data-theme="dark"] .car-badge{background:#26382e;color:#8ce0b9}
+html[data-theme="dark"] .theme-toggle{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:10px}
+html[data-theme="dark"] .theme-toggle:hover,html[data-theme="dark"] .help-button:hover,html[data-theme="dark"] .copy-button:hover,html[data-theme="dark"] .path-card button:hover{background:#2a3931}
+.theme-toggle{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:7px;padding:5px 8px;background:var(--paper);color:var(--ink);font-size:10px}
+@media(max-width:760px){.theme-toggle{font-size:11px}.theme-toggle-label{display:none}}

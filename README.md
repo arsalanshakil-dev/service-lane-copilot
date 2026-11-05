@@ -76,10 +76,10 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/package-lock.json` | Exact resolved frontend dependency versions for repeatable npm installs. |
 | `frontend/next.config.ts` | Rewrite from browser `/api/copilot/*` requests to the local FastAPI `/api/*` routes. |
 | `frontend/.env.local.example` | Example backend URL setting for local development. |
-| `frontend/app/page.tsx` | Main advisor lookup and service-history screen. |
-| `frontend/app/layout.tsx` | Shared page shell and document metadata. |
+| `frontend/app/page.tsx` | Main advisor lookup and service-history screen, including the light/dark theme control. |
+| `frontend/app/layout.tsx` | Shared page shell, document metadata, and early restoration of the saved display theme. |
 | `frontend/app/icon.svg` | Service Lane Copilot favicon for browser tabs. |
-| `frontend/app/globals.css` | App-wide styles. |
+| `frontend/app/globals.css` | App-wide light and dark theme colors and component styles. |
 | `frontend/tsconfig.json` | TypeScript compiler configuration used by Next.js. |
 | `frontend/next-env.d.ts` | Next.js generated TypeScript environment declarations. |
 | `docs/feature-spec-template.md` | Template for specifying a distinct feature before implementation. |
