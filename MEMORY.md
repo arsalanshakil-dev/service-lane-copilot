@@ -37,8 +37,8 @@ Backend, from `backend/`:
 
 ```powershell
 py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+.\\.venv\\Scripts\\python.exe -m pip install -r requirements.txt
+.\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Frontend, from `frontend/`:
@@ -53,7 +53,8 @@ Open `http://localhost:3000`. For stdio MCP hosts, launch `<backend>/.venv/Scrip
 ## Verified state and known gaps
 
 - The source audit found a missing `date` import in the FastAPI mileage request model and a mismatch between the accepted replacement behavior and the missing-mileage-only form; issue #10 corrects both.
-- Supabase database adapter tests and mileage API regression tests are under `backend/tests/`; `.github/workflows/verify.yml` runs backend tests and the frontend production build on pull requests and main pushes. GitHub Actions run 9 passed both jobs for commit `40654ab0be476325a6e260fc3dfb8fbaf0a1bead`; a subsequent README-only update was made after that run, so verify the latest PR checks before merging.
+- Supabase database adapter tests and mileage API regression tests are under `backend/tests/`; `.github/workflows/verify.yml` runs backend tests and the frontend production build on pull requests and main pushes. GitHub Actions run 9 passed both jobs for commit `40654ab0be476325a6e260fc3dfb8fbaf0a1bead`.
+- GitHub Actions run 42035577954 on main exposed a stale OBD telemetry test that called the removed `load_vehicles.cache_clear()` API and expected JSON-backed runtime storage. Issue #16 and PR #17 update the test to validate the seed fixture and use a fake Supabase store. GitHub Actions run 42041434835 passed both backend regression checks and the frontend production build for the PR head.
 - The acceptance and verification plan is in `SERVICE_LANE_COPILOT_SPEC.md` and `docs/feature-spec-local-ollama-chat.md`. The local agent and chat have not been run in this environment; tool-calling behavior is unverified until exercised with an installed Ollama model.
 - Do not assume the MCP mount, tools, UI, or API are runtime-verified based on source inspection alone.
 - No live OBD-II/CAN integration, dealership history integration, authentication, hosted deployment, or real maintenance catalog exists.
