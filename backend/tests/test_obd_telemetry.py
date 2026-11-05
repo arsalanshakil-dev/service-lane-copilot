@@ -36,12 +36,17 @@ class FakeQuery:
         self.filters: dict[str, object] = {}
         self.payload: dict | None = None
         self.row_limit: int | None = None
+        self.order_by: str | None = None
 
     def select(self, _columns: str) -> "FakeQuery":
         return self
 
     def eq(self, column: str, value: object) -> "FakeQuery":
         self.filters[column] = value
+        return self
+
+    def order(self, column: str) -> "FakeQuery":
+        self.order_by = column
         return self
 
     def limit(self, count: int) -> "FakeQuery":
@@ -67,6 +72,8 @@ class FakeQuery:
             for row in self.client.rows.values()
             if all(row.get(key) == value for key, value in self.filters.items())
         ]
+        if self.order_by is not None:
+            rows.sort(key=lambda row: row[self.order_by])
         if self.row_limit is not None:
             rows = rows[: self.row_limit]
         return SimpleNamespace(data=rows)
