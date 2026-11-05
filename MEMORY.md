@@ -67,6 +67,7 @@ Open `http://localhost:3000`. For stdio MCP hosts, launch `<backend>/.venv/Scrip
 - Do not assume the MCP mount, tools, UI, or API are runtime-verified based on source inspection alone.
 - No live OBD-II/CAN integration, dealership history integration, authentication, hosted deployment, or real maintenance catalog exists.
 - Numeric success targets are open until advisor baseline measures are captured.
+- Agent instructions (issue #25): root `CLAUDE.md` imports `@AGENTS.md`, so Claude Code and other agents share one rule set; `AGENTS.md` now requires updating the spec/feature spec, `MEMORY.md`, and `CONTEXT.md` with each new requirement and change in the same PR. `frontend/AGENTS.md` is separate Next.js-generated guidance.
 
 ## Update rule
 
