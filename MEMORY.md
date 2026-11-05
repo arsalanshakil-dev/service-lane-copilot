@@ -53,7 +53,7 @@ Open `http://localhost:3000`. For stdio MCP hosts, launch `<backend>/.venv/Scrip
 ## Verified state and known gaps
 
 - The source audit found a missing `date` import in the FastAPI mileage request model and a mismatch between the accepted replacement behavior and the missing-mileage-only form; issue #10 corrects both.
-- Supabase database adapter tests and mileage API regression tests are under `backend/tests/`; `.github/workflows/verify.yml` runs backend tests and the frontend production build on pull requests and main pushes. This feature branch's CI status is pending review; do not treat checks as passed until GitHub Actions confirms them.
+- Supabase database adapter tests and mileage API regression tests are under `backend/tests/`; `.github/workflows/verify.yml` runs backend tests and the frontend production build on pull requests and main pushes. GitHub Actions run 9 passed both jobs for commit `40654ab0be476325a6e260fc3dfb8fbaf0a1bead`; a subsequent README-only update was made after that run, so verify the latest PR checks before merging.
 - The acceptance and verification plan is in `SERVICE_LANE_COPILOT_SPEC.md` and `docs/feature-spec-local-ollama-chat.md`. The local agent and chat have not been run in this environment; tool-calling behavior is unverified until exercised with an installed Ollama model.
 - Do not assume the MCP mount, tools, UI, or API are runtime-verified based on source inspection alone.
 - No live OBD-II/CAN integration, dealership history integration, authentication, hosted deployment, or real maintenance catalog exists.
