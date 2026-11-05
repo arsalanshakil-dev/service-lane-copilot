@@ -20,7 +20,7 @@ Updated: 2026-11-05
 ### In scope
 
 - Add four clearly named simulated streams to all 250 synthetic vehicle records: engine RPM (rpm), vehicle speed (km/h), coolant temperature (°C), and calculated engine load (%).
-- Include five timestamped sample points per stream, consistent units, deterministic values, and record-level simulation metadata.
+- Include four timestamped sample points per stream, consistent units, deterministic values, and record-level simulation metadata.
 - Display a compact trend chart for each stream on the vehicle details page, including latest value and sample time.
 - Expose the record fields through existing REST and MCP record retrieval; no separate telemetry transport or write endpoint.
 - Update requirements, agent instructions, context, memory, README diagrams/tree/file guide, and add automated regression checks.
@@ -59,8 +59,8 @@ Updated: 2026-11-05
 
 ## Acceptance criteria
 
-1. All 250 records contain simulation metadata and exactly four documented streams, each with five timestamped numeric samples and the specified unit.
-2. Sample values are deterministic and timestamps form the documented fixed demo window.
+1. All 250 records contain simulation metadata and exactly four documented streams, each with four timestamped numeric samples and the specified unit.
+2. Sample values are deterministic and timestamps form the documented fixed four-minute demo window.
 3. Known vehicle REST and MCP retrieval exposes the simulation marker and streams; an unknown vehicle remains not found.
 4. The vehicle page shows a clear simulated warning, each stream’s unit/latest value/time, and a visual trend; missing telemetry has a clear unavailable state.
 5. Neither recommendations, mileage, nor service history are calculated or modified from telemetry.
