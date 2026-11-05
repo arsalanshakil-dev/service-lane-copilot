@@ -12,13 +12,14 @@ This MVP uses synthetic vehicles, service histories, and clearly labeled example
 - **Backend:** Python FastAPI REST API plus a standard MCP server in `backend/`.
 - **Backend docs:** Swagger UI at `/docs`, OpenAPI JSON at `/openapi.json`, and interface summary at `/api/capabilities`.
 - **Dataset:** 250 synthetic records in `data/vehicles.json`, loaded by the backend.
+- **Manual mileage:** advisor-reviewed `PATCH /api/vehicles/{serial}/mileage` replaces the current value in the local synthetic dataset; this is the only REST write route, and MCP remains read-only.
 - **API connection:** Next.js rewrites `/api/copilot/*` to the local FastAPI service, avoiding a separate browser CORS configuration for the demo.
 - **Agent connection:** MCP Streamable HTTP at `/mcp` and stdio for local subprocess-based agent harnesses.
 - **Local runtime:** Node.js 20.9+ and Python 3.11+.
 
 ## MCP interface
 
-Expose the synthetic dataset to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the same validated read-only data loader as the REST API.
+Expose the synthetic dataset to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the validated synthetic data loader with REST. MCP remains read-only; the REST API has one advisor-reviewed synthetic mileage write route.
 
 - Tools: search records, get one vehicle record, prepare customer drafts, prepare record-intake/outside-history drafts, and summarize the dataset.
 - Resources: a demo safety guide and individual synthetic vehicle records.
@@ -67,6 +68,14 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - A serial-number lookup returns either one matching synthetic vehicle or a clear no-match result.
 - Synthetic vehicle records include serial number, make/model/year, recorded odometer mileage and timestamp, service events, and any missing-data indicators.
 - No match, missing mileage, conflicting mileage, or sparse history must be shown as a data limitation; the app must not silently fill gaps.
+
+### Manual mileage updates
+
+- An advisor can replace the current mileage for any known synthetic vehicle, whether the existing value is missing or needs correction.
+- Record the reading date and source (`advisor_observed` or `customer_reported`); the replacement supersedes the current mileage and does not retain the previous value.
+- A reading below recorded service mileage is marked conflicting. Missing, stale, or incomplete service history keeps recommendations paused; mileage entry alone never creates a recommendation or interval.
+- This write is available only through the local REST endpoint. MCP tools and resources remain read-only.
+- See `docs/feature-spec-manual-mileage.md`.
 
 ### Recommendations
 
@@ -127,6 +136,7 @@ Before calling the MVP ready, automate these behaviors where practical and recor
 12. Multi-step search/retrieve/draft tasks use MCP results; unknown or incomplete records remain explicit and uncertain.
 13. Ollama unavailable, no installed model, invalid tool, and MCP tool failure produce clear errors without making external calls.
 14. Chat cannot send drafts, write a vehicle record, book service, or control a vehicle; history is not persisted server-side.
+15. Manual mileage can replace the current value with date and source for a known serial; invalid/future values are rejected, unknown serials return 404, and conflicting/incomplete evidence keeps recommendations paused.
 
 Review the code changes and evidence for each check before accepting them. A check that was not run is **unverified**, not passed. The existing verification plan defines expected behavior; it is not evidence that implementation has already passed.
 
@@ -162,7 +172,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 - [x] **Set MVP acceptance checks.** The nine repeatable behavior checks are listed in the verification plan. Their execution is still needed before claiming the checks passed.
 - [x] **Choose implementation stack and local run instructions.** Use a Python FastAPI backend and a React/Next.js App Router frontend with TypeScript. Expose read-only MCP tools over Streamable HTTP and stdio. Run the two local development servers using the root README instructions.
 
-**Demo release scope:** approved as a synthetic-data demonstration. It is a local, non-production prototype with a read-only Python REST/MCP backend and a Next.js frontend, no external integrations, no real customer data, and no live dealership actions. The dataset contains 250 records total; generated profiles use fictional makes/models and repeatable example scenarios.
+**Demo release scope:** approved as a synthetic-data demonstration. It is a local, non-production prototype with a Python REST backend whose only write operation is the advisor-reviewed synthetic mileage update, a read-only MCP server, and a Next.js frontend. It has no external integrations, real customer data, or live dealership actions. The dataset contains 250 records total; generated profiles use fictional makes/models and repeatable example scenarios.
 
 ### Needed before a real dealership pilot
 
@@ -189,9 +199,11 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 ## Project files
 
 - `AGENTS.md` defines the required spec-first process and safety rules for coding agents.
+- `.github/workflows/verify.yml` runs the backend regression suite and frontend production build for pull requests and main pushes.
 - `MEMORY.md` records verified implementation facts and current gaps; it does not override this spec.
 - `docs/feature-spec-template.md` is the template for distinct features.
 - `docs/feature-spec-local-ollama-chat.md` defines the in-app assistant, local-only Ollama boundary, and full MCP capability access.
+- `docs/feature-spec-manual-mileage.md` defines advisor mileage replacement, provenance, and evidence limits.
 - `frontend/app/` contains the Next.js page and styles.
 - `frontend/app/icon.svg` is the browser-tab favicon.
 - `frontend/next.config.ts` proxies browser API calls to FastAPI.

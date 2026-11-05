@@ -2,6 +2,7 @@
 
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import date
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query
@@ -97,6 +98,7 @@ def capabilities() -> dict[str, Any]:
             "health": "/api/health",
             "search_vehicles": "/api/vehicles?q={query}&limit={limit}",
             "get_vehicle": "/api/vehicles/{serial}",
+            "update_manual_mileage": "PATCH /api/vehicles/{serial}/mileage",
             "local_chat_models": "GET /api/chat/models",
             "local_mcp_chat": "POST /api/chat",
         },
@@ -172,7 +174,7 @@ async def local_chat(payload: LocalChatRequest) -> dict[str, Any]:
 
 @app.patch("/api/vehicles/{serial}/mileage", tags=["Vehicles"])
 def update_manual_mileage(serial: str, payload: ManualMileageUpdate) -> dict[str, Any]:
-    """Replace missing current mileage in a synthetic record with advisor-confirmed data."""
+    """Replace current mileage in a synthetic record with advisor-confirmed data."""
     if payload.mileage_date > date.today():
         raise HTTPException(status_code=422, detail="Mileage date cannot be in the future.")
     try:

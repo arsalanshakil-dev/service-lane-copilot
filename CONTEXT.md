@@ -19,17 +19,18 @@ The demo uses 250 fictional vehicle records. It is not a production maintenance 
 1. Enter a vehicle serial number in the web app.
 2. Review the matching synthetic vehicle, mileage, history, data timing, and limitations.
 3. Review explicitly stored due or coming-up examples with their record evidence and demo rule.
-4. Prepare and edit customer explanations, quote text, follow-ups, or record/history request drafts.
-5. The advisor can use the same lookup, evidence, and draft capabilities through the in-app local assistant.
-6. The advisor decides what to do with each draft; the app does not send or submit it.
+4. If current mileage is missing or needs correction, replace it with an advisor-confirmed reading, date, and source in the local synthetic record; mileage alone does not resolve missing history.
+5. Prepare and edit customer explanations, quote text, follow-ups, or record/history request drafts.
+6. The advisor can use the same lookup, evidence, and draft capabilities through the in-app local assistant.
+7. The advisor decides what to do with each draft; the app does not send or submit it.
 
 No match or incomplete, stale, or contradictory data must remain visible as uncertainty. The app must not fill gaps or present an unsupported service as necessary. Safety-related items are prompts for advisor verification, not diagnoses.
 
 ## Boundaries
 
 - Use synthetic data only. Never add real customer, vehicle, or dealership records, credentials, or secrets.
-- Drafts are text only. Do not send messages, submit requests, book appointments, modify records, or contact external services.
-- MCP operations remain read-only apart from returning draft text; they do not persist changes. The chat uses only installed local Ollama models, and chat history is not stored by the backend.
+- Drafts are text only: they do not send messages, submit requests, book appointments, modify records, or contact external services. A separate local REST endpoint lets an advisor replace synthetic current mileage with date/source provenance.
+- MCP operations remain read-only apart from returning draft text; they do not persist changes. The manual mileage route is the only REST write path and changes synthetic data only. Chat uses installed local Ollama models, and chat history is not stored by the backend.
 - OBD-II/CAN, live dealership systems, external history providers, real maintenance schedules, and production deployment are out of scope for this demo. Future OBD-II work must be separately specified and read-only.
 - Do not invent prices, vehicle details, maintenance intervals, or history.
 
