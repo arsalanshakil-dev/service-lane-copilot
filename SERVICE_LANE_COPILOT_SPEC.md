@@ -64,6 +64,14 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 
 - The browser tab displays a recognizable Service Lane Copilot icon using the Next.js App Router icon convention.
 
+### Interface quality (issue #32)
+
+- Body text, labels, and controls use at least 11 px text; most reading text is 12–14 px.
+- Light and dark themes cover every surface, including cards, inputs, drafts, recommendations, history, forms, telemetry, AI suggestions, and chat.
+- At 375 px width the page has no horizontal scroll. The icon sidebar is hidden below 760 px; navigation stays in the top bar.
+- Interactive controls show a visible keyboard focus ring and have tap targets of roughly 28 px or more. Controls that do nothing in the demo are not shown as interactive (no dropdown chevron on the dealer card; "?" links to the demo note).
+- Service-history rows show the date on one line and the detail under the service name; the draft editor uses the app font.
+
 ### Local development origin
 
 - The interactive page must work when opened at either `http://localhost:3000` or `http://127.0.0.1:3000`.
