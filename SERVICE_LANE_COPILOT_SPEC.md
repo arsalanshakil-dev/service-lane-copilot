@@ -199,6 +199,7 @@ Items below are split between the synthetic-data MVP and a later dealership pilo
 ## Project files
 
 - `AGENTS.md` defines the required spec-first process and safety rules for coding agents.
+- `.github/workflows/verify.yml` runs the backend regression suite and frontend production build for pull requests and main pushes.
 - `MEMORY.md` records verified implementation facts and current gaps; it does not override this spec.
 - `docs/feature-spec-template.md` is the template for distinct features.
 - `docs/feature-spec-local-ollama-chat.md` defines the in-app assistant, local-only Ollama boundary, and full MCP capability access.
