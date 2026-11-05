@@ -15,13 +15,13 @@ This file is a continuity summary, not a requirements document. Product requirem
 
 ## Architecture facts
 
-- REST endpoints: `GET /api/health`, `GET /api/vehicles`, `GET /api/vehicles/{serial}`, `GET /api/chat/models`, and `POST /api/chat`.
+- REST endpoints: `GET /api/health`, `GET /api/vehicles`, `GET /api/vehicles/{serial}`, `PATCH /api/vehicles/{serial}/mileage`, `GET /api/chat/models`, and `POST /api/chat`.
 - Swagger UI: `/docs`; OpenAPI JSON: `/openapi.json`; REST/MCP interface summary: `/api/capabilities`.
 - MCP Streamable HTTP endpoint: `http://127.0.0.1:8000/mcp`, mounted in `backend/app/main.py`.
 - MCP stdio launcher: `backend/mcp_stdio.py`.
 - MCP tools: `search_vehicle_records`, `get_vehicle_record`, `create_customer_draft`, `create_record_request_draft`, and `dataset_summary`.
 - MCP resources: `service-lane://demo-guide` and `vehicle://{serial}`.
-- MCP tools remain read-only. Draft tools return text with `sent: false` / `submitted: false`; they do not contact anyone or change records. Only the local REST mileage route writes the synthetic JSON file.
+- MCP tools remain read-only. Draft tools return text with `sent: false` / `submitted: false`; they do not contact anyone or change records. The local REST mileage route is the sole write path; it replaces mileage with advisor-entered date/source for known synthetic records.
 - Next.js proxies `/api/copilot/*` to FastAPI using `frontend/next.config.ts`.
 - In-app chat exposes `GET /api/chat/models` and `POST /api/chat`; model discovery and inference are fixed to Ollama at `http://127.0.0.1:11434` with no cloud fallback.
 - `backend/app/local_agent.py` discovers MCP tools and resources in-process with the pinned MCP SDK, passes tool schemas to Ollama, reads advertised resources, and limits each turn to six tool rounds/twelve tool calls. It refuses an answer when the model uses no MCP capability.
@@ -51,8 +51,8 @@ Open `http://localhost:3000`. For stdio MCP hosts, launch `<backend>/.venv/Scrip
 
 ## Verified state and known gaps
 
-- Stack files and setup instructions are present, but the Next.js/FastAPI/MCP runtime has not been launched in this workspace.
-- No backend, frontend, or Ollama checks were run for the local chat change. Treat runtime behavior and model tool-calling support as unverified until checked with the local services.
+- The source audit found a missing `date` import in the FastAPI mileage request model and a mismatch between the accepted replacement behavior and the missing-mileage-only form; issue #10 corrects both.
+- Regression tests were added under `backend/tests/`; they have not been run because the local command runner fails during setup refresh. Frontend build/browser tests and Ollama/MCP runtime flows remain unverified.
 - The acceptance and verification plan is in `SERVICE_LANE_COPILOT_SPEC.md` and `docs/feature-spec-local-ollama-chat.md`. The local agent and chat have not been run in this environment; tool-calling behavior is unverified until exercised with an installed Ollama model.
 - Do not assume the MCP mount, tools, UI, or API are runtime-verified based on source inspection alone.
 - No live OBD-II/CAN integration, dealership history integration, authentication, hosted deployment, or real maintenance catalog exists.
