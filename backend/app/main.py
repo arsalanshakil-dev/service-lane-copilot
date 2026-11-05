@@ -98,6 +98,7 @@ def capabilities() -> dict[str, Any]:
             "health": "/api/health",
             "search_vehicles": "/api/vehicles?q={query}&limit={limit}",
             "get_vehicle": "/api/vehicles/{serial}",
+            "vehicle_record_data": ["synthetic identity", "mileage", "service history", "demo recommendations", "simulated OBD telemetry"],
             "update_manual_mileage": "PATCH /api/vehicles/{serial}/mileage",
             "local_chat_models": "GET /api/chat/models",
             "local_mcp_chat": "POST /api/chat",
