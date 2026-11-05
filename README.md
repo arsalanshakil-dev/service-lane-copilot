@@ -14,7 +14,7 @@ Open `http://localhost:3000`. All data is synthetic demo data; nothing is sent t
 
 | Area | What you can do |
 | --- | --- |
-| **Service lane** | Look up a vehicle by serial (or pick a sample). See mileage, simulated OBD-II telemetry, recommendations computed from the maintenance rules (plus Advisor-entered ones) with their evidence, and service history. |
+| **Service lane** | Look up a vehicle by serial (or pick a sample). See mileage, a scrollable simulated 5-minute OBD-II recording (zoom 15 s–5 min, slider/◀ ▶/arrow keys, hover for values), recommendations computed from the maintenance rules (plus Advisor-entered ones) with their evidence, and service history. |
 | **Vehicle records** | Browse and search all 1,000 records (25 per page), open one in the Service lane, **+ Add vehicle**, and open an **✦ AI summary** per row ("Needs now" copied from the record plus short local-AI context). |
 | **Record a service** | **✓ Mark as done** on a recommendation or **+ Record service** in Service history. Saves a history entry, marks the recommendation Completed, and raises current mileage when the odometer is higher. |
 | **Edit a record** | **Edit details** (make, model, year, serial), **Edit** a history entry (history can be corrected but never deleted), **+ Add recommendation** / **Edit** / **Remove** (Advisor-entered), **Update mileage**. Every save appears in the record's **Change log**. |
@@ -91,6 +91,7 @@ service-lane-copilot/
 │   │   ├── test_edit_records.py      # Add/edit record routes and change log checks
 │   │   ├── test_mcp_writes.py        # MCP write tools and chat proposal checks
 │   │   ├── test_rules.py             # Rules engine, rules API, and fallback checks
+│   │   ├── test_telemetry_recording.py # Simulated recording checks
 │   │   ├── isolation.py              # Keeps tests off any real database
 │   │   ├── test_local_agent.py       # Local Ollama chat loop and error-mapping checks
 │   │   ├── test_mileage.py           # Mileage replacement and API regression checks
@@ -101,6 +102,7 @@ service-lane-copilot/
 │       ├── ai_assist.py              # Local AI drafts and validated AI suggestions
 │       ├── record_edits.py           # Add vehicles; edit details, history, recommendations
 │       ├── rules_engine.py           # Editable maintenance rules and computed recommendations
+│       ├── telemetry_sim.py          # Deterministic simulated 5-minute OBD-II recording
 │       ├── service_names.py          # Shared service-name matching (rules and AI repeat guard)
 │       ├── local_agent.py            # Local Ollama and MCP tool orchestration
 │       ├── mcp_server.py             # MCP read, draft, and write tools and resources
@@ -116,6 +118,7 @@ service-lane-copilot/
         ├── ai-model.ts               # App-wide AI model choice (Settings) shared by all AI features
         ├── display-prefs.ts          # Theme and time-zone preferences (Settings)
         ├── rules-settings.tsx        # Settings → Maintenance rules editor
+        ├── telemetry-panel.tsx       # Scrollable simulated OBD-II telemetry panel
         ├── record-editors.tsx        # Add vehicle, edit details/history/recommendations, change log
         ├── layout.tsx                # App shell and metadata
         └── globals.css               # Global styles
@@ -156,10 +159,12 @@ The tree shows the main source files and intentionally omits generated folders s
 | `backend/app/local_agent.py` | Local Ollama model discovery, bounded tool loop, MCP tool/resource dispatch, and grounding instructions. |
 | `backend/tests/test_synthetic_generator.py` | Generator checks: fixture matches the generator, consistent mileage and recommendations, even scenario mix, seed validation. |
 | `backend/tests/test_supabase_store.py` | Database adapter, fixture seed validation, and migration access checks. |
+| `backend/app/telemetry_sim.py` | Builds a deterministic simulated 5-minute, 1 Hz recording (RPM, speed, coolant, load) per vehicle; never stored. |
 | `backend/app/rules_engine.py` | Loads `service_rules`, computes Due / Coming up / Advisor verification from history and mileage, merges Advisor-entered items, and edits rules with a change log. |
 | `backend/app/service_names.py` | Keyword matching of service names, shared by the rules engine and the AI repeat guard. |
 | `backend/app/record_edits.py` | Add a vehicle, edit details (including serial rename), edit/delete history entries, add/edit/remove recommendations; each write is validated and logged. |
 | `backend/app/ai_assist.py` | Local Ollama customer drafts and AI suggestions; drops suggestions without cited history or with prices, intervals, or duplicates. |
+| `backend/tests/test_telemetry_recording.py` | Recording length, 1 s spacing, ranges, determinism, drive profile, 404, no writes. |
 | `backend/tests/test_rules.py` | Rules engine (Due/Coming up/safety, paused records, latest entry), rules API (validation, duplicates, stale edits, log), and the no-migration fallback. |
 | `backend/tests/isolation.py` | Imported first by every test module; blanks Supabase settings so tests never reach a real database. |
 | `backend/tests/test_mcp_writes.py` | MCP write tools (saved/rejected, actor), chat proposals (no write before Apply, single use, expiry, discard, 422). |
@@ -176,6 +181,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/app/page.tsx` | Main advisor lookup and service-history screen, Vehicle records list (search and paging), Mark as done / Record service forms, template and local-AI customer drafts, AI suggestions section, and the local chat panel. |
 | `frontend/app/layout.tsx` | Shared page shell and document metadata. |
 | `frontend/app/record-editors.tsx` | Add vehicle form, Edit details, editable history rows, recommendation editor, and Change log panel. |
+| `frontend/app/telemetry-panel.tsx` | Telemetry panel: shared time window, zoom, scroll, hover crosshair, window stats, stored-sample fallback. |
 | `frontend/app/rules-settings.tsx` | Settings → Maintenance rules: rules table, add/edit/disable, per-rule change history, setup notice. |
 | `frontend/app/display-prefs.ts` | Theme (Light/Dark/System) and time-zone preferences saved in the browser, plus helpers that format times in the chosen zone. |
 | `frontend/app/ai-model.ts` | `useAiModel()` hook: installed local chat models and the app-wide model chosen in Settings (saved in the browser). |
