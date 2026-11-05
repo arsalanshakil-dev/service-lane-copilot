@@ -19,7 +19,7 @@ Updated: 2026-11-05
 
 ### In scope
 
-- Add an in-app chat panel with a selector populated only from models installed in the local Ollama service.
+- Add an in-app chat panel that uses a model installed in the local Ollama service. Since issue #40 the model is chosen once in Settings for the whole app; the chat panel shows it with a link to Settings instead of its own selector.
 - Call Ollama only at `http://127.0.0.1:11434`; do not accept a configurable remote model URL or fall back to hosted inference.
 - Use Ollama's local `/api/chat` tool-calling interface with `think: false`, so thinking-capable local models (for example qwen3/qwen3.5) return tool calls and replies without long hidden reasoning that can exceed the request timeout on CPU-only machines.
 - Connect to the existing MCP server in-process through the pinned MCP Python SDK client; dynamically discover and call every registered MCP tool.
