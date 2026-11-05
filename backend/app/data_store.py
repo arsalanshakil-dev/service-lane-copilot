@@ -111,7 +111,7 @@ def update_vehicle_mileage(
             ) as temporary_file:
                 temporary_path = Path(temporary_file.name)
                 json.dump(updated_vehicles, temporary_file, ensure_ascii=False, indent=2)
-                temporary_file.write("\\n")
+                temporary_file.write("\n")
             os.replace(temporary_path, DATA_FILE)
         except OSError:
             if temporary_path is not None:
