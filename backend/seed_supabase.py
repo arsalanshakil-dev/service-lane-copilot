@@ -55,28 +55,36 @@ def supabase_client() -> Client:
         raise RuntimeError("Could not initialize the Supabase client.") from exc
 
 
-def seed_vehicles(client: Client, rows: list[dict[str, Any]]) -> int:
-    """Upsert fixture rows by serial in bounded batches; safe to repeat."""
+def seed_vehicles(client: Client, rows: list[dict[str, Any]], keep_existing: bool = False) -> int:
+    """Upsert fixture rows by serial in bounded batches; safe to repeat.
+
+    By default existing rows are refreshed from the fixture (advisor-saved changes are
+    replaced). With keep_existing=True, only serials missing from the table are inserted
+    (ON CONFLICT DO NOTHING), so mileage and services saved through the app are kept.
+    """
     for start in range(0, len(rows), BATCH_SIZE):
         batch = rows[start : start + BATCH_SIZE]
         client.table("vehicle_records").upsert(
             batch,
             on_conflict="serial",
+            ignore_duplicates=keep_existing,
         ).execute()
     return len(rows)
 
 
 def main() -> int:
+    keep_existing = "--keep-existing" in sys.argv[1:]
     try:
         rows = build_seed_rows()
-        seeded = seed_vehicles(supabase_client(), rows)
+        seeded = seed_vehicles(supabase_client(), rows, keep_existing=keep_existing)
     except Exception:
         print(
             "Supabase seed failed. Check backend/.env, database availability, and that migrations are applied.",
             file=sys.stderr,
         )
         return 1
-    print(f"Seeded {seeded} synthetic vehicle records into Supabase.")
+    mode = "inserted missing rows only; existing rows kept" if keep_existing else "existing rows refreshed from the fixture"
+    print(f"Seeded {seeded} synthetic vehicle records into Supabase ({mode}).")
     return 0
 
 

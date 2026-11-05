@@ -14,7 +14,7 @@ Updated: 2026-11-05
 
 - FastAPI reads and persists vehicle records through Supabase Postgres.
 - The existing REST/MCP vehicle record shape remains stable.
-- Local developers can create a database using checked-in migrations and load the 250 synthetic fixture records.
+- Local developers can create a database using checked-in migrations and load the synthetic fixture records (250 at the time; 1,000 since issue #34).
 - Database availability/configuration failures are explicit and never silently fall back to local JSON.
 
 ## Scope

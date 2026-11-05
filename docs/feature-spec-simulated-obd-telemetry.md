@@ -19,7 +19,7 @@ Updated: 2026-11-05
 
 ### In scope
 
-- Add four clearly named simulated streams to all 250 synthetic vehicle records: engine RPM (rpm), vehicle speed (km/h), coolant temperature (°C), and calculated engine load (%).
+- Add four clearly named simulated streams to all synthetic vehicle records (250 at the time; 1,000 since issue #34): engine RPM (rpm), vehicle speed (km/h), coolant temperature (°C), and calculated engine load (%).
 - Include four timestamped sample points per stream, consistent units, deterministic values, and record-level simulation metadata.
 - Display a compact trend chart for each stream on the vehicle details page, including latest value and sample time.
 - Expose the record fields through existing REST and MCP record retrieval; no separate telemetry transport or write endpoint.
