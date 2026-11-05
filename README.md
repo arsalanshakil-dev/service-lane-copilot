@@ -81,6 +81,7 @@ service-lane-copilot/
         ├── icon.svg                 # Browser-tab favicon
         ├── page.tsx                  # Main advisor screen
         ├── chat-panel.tsx             # Advisor chat using local Ollama and MCP
+        ├── ai-model.ts               # App-wide AI model choice (Settings) shared by all AI features
         ├── layout.tsx                # App shell and metadata
         └── globals.css               # Global styles
 ```
@@ -127,6 +128,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/.env.local.example` | Example backend URL setting for local development. |
 | `frontend/app/page.tsx` | Main advisor lookup and service-history screen, Vehicle records list (search and paging), Mark as done / Record service forms, template and local-AI customer drafts, AI suggestions section, and the local chat panel. |
 | `frontend/app/layout.tsx` | Shared page shell and document metadata. |
+| `frontend/app/ai-model.ts` | `useAiModel()` hook: installed local chat models and the app-wide model chosen in Settings (saved in the browser). |
 | `frontend/app/chat-panel.tsx` | In-app assistant conversation, local model selection, and MCP tool usage display. |
 | `frontend/app/icon.svg` | Service Lane Copilot favicon for browser tabs. |
 | `frontend/app/globals.css` | App-wide styles. |

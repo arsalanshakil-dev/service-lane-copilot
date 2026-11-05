@@ -1,16 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
+import { useAiModel } from "./ai-model";
 
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   tools?: string[];
-};
-
-type ModelsResponse = {
-  local_only: boolean;
-  models: string[];
 };
 
 type ChatResponse = {
@@ -20,51 +16,15 @@ type ChatResponse = {
 };
 
 const HISTORY_LIMIT = 12;
-const isChatModel = (name: string) => !/(?:embed|embedding|all-minilm)/i.test(name);
 
 export default function ChatPanel() {
   const [open, setOpen] = useState(false);
-  const [models, setModels] = useState<string[]>([]);
-  const [model, setModel] = useState("");
+  // The model is chosen once in Settings and shared by every AI feature (issue #40).
+  const { model, error: modelError, loading: modelsLoading } = useAiModel();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [refreshModels, setRefreshModels] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadModels() {
-      setError("");
-      try {
-        const response = await fetch("/api/copilot/chat/models", {
-          headers: { Accept: "application/json" },
-        });
-        const data = (await response.json()) as ModelsResponse & { detail?: string };
-        if (!response.ok || !data.local_only) {
-          throw new Error(data.detail ?? "Could not connect to local Ollama.");
-        }
-        if (!cancelled) {
-          const chatModels = data.models.filter(isChatModel);
-          setModels(chatModels);
-          setModel((current) => (chatModels.includes(current) ? current : chatModels[0] ?? ""));
-          if (chatModels.length === 0) {
-            setError("No local Ollama models found. Install a model, then refresh the list.");
-          }
-        }
-      } catch (reason) {
-        if (!cancelled) {
-          setModels([]);
-          setModel("");
-          setError(reason instanceof Error ? reason.message : "Could not connect to local Ollama.");
-        }
-      }
-    }
-    void loadModels();
-    return () => {
-      cancelled = true;
-    };
-  }, [refreshModels]);
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -147,12 +107,11 @@ export default function ChatPanel() {
             </div>
           </header>
           <div className="chat-model-row">
-            <label htmlFor="chat-model">Local model</label>
-            <select id="chat-model" value={model} onChange={(event) => setModel(event.target.value)} disabled={models.length === 0 || loading}>
-              {models.length === 0 ? <option value="">No local models</option> : models.map((name) => <option key={name} value={name}>{name}</option>)}
-            </select>
-            <button type="button" className="chat-refresh" onClick={() => setRefreshModels((value) => value + 1)} disabled={loading} aria-label="Refresh local model list">↻</button>
+            <span className="chat-model-label">Model</span>
+            <strong className="chat-model-name">{modelsLoading ? "Loading…" : model || "None available"}</strong>
+            <a className="chat-settings-link" href="#settings" onClick={() => setOpen(false)}>Change in Settings</a>
           </div>
+          {!modelsLoading && modelError && <div className="chat-error" role="alert">{modelError} Open Settings to check the model.</div>}
           <div className="chat-privacy-note">Messages and MCP requests stay on this computer. This assistant can read records and prepare drafts; it cannot send or update anything.</div>
           <div className="chat-messages" aria-live="polite" aria-relevant="additions text">
             {messages.length === 0 && (
