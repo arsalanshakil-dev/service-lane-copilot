@@ -162,7 +162,9 @@ export default function Home() {
         notify(data.detail ?? "Could not save the mileage reading.");
         return;
       }
-      setVehicle(data as Vehicle);
+      const updatedVehicle = data as Vehicle;
+      setVehicle(updatedVehicle);
+      setDraftText(draftFor(updatedVehicle, activeDraft));
       setManualMileage("");
       setManualMileageDate("");
       notify(data.conflicting ? "Mileage saved; history conflict needs review" : "Mileage saved to the synthetic record");
