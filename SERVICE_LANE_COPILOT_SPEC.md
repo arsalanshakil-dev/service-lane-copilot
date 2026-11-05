@@ -86,6 +86,13 @@ For a later dealership pilot, add an optional read-only vehicle connection throu
 - Safety-related items receive a prominent verification label and are not presented as a diagnosis or confirmed defect.
 - The interface labels the schedule and records as synthetic demonstration data.
 
+### Display theme
+
+- The frontend provides an accessible control to toggle between light and dark themes.
+- Light theme is the default when no preference has been saved. The advisor's explicit selection is stored in that browser and restored before the app is displayed where practical.
+- The selected theme applies consistently to the navigation, lookup and welcome screens, vehicle/service history, recommendation cards, drafts, empty states, and form controls.
+- Theme preference is presentation-only. It does not change recommendations, stored vehicle data, or backend behavior.
+
 ### Drafts and approvals
 
 - Customer explanations, quote text, follow-ups, vehicle-registration requests, and external-history requests are drafts only.

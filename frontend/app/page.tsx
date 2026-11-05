@@ -105,6 +105,16 @@ export default function Home() {
     window.setTimeout(() => setToast(""), 2200);
   }
 
+  function toggleTheme() {
+    const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = nextTheme;
+    try {
+      window.localStorage.setItem("service-lane-theme", nextTheme);
+    } catch {
+      // The current page theme still changes if browser storage is unavailable.
+    }
+  }
+
   async function lookup(rawSerial: string) {
     const normalized = rawSerial.trim().toUpperCase();
     setSerial(normalized);
@@ -208,7 +218,7 @@ export default function Home() {
       </aside>
 
       <main id="main" className="main-content">
-        <header className="topbar"><div className="breadcrumbs">Workspace <span>/</span> <strong>Service lane</strong></div><div className="topbar-right"><span className="live-dot" /> Synthetic data <span className="top-divider" /><button className="help-button" aria-label="Help">?</button></div></header>
+        <header className="topbar"><div className="breadcrumbs">Workspace <span>/</span> <strong>Service lane</strong></div><div className="topbar-right"><button className="theme-toggle" type="button" onClick={toggleTheme} aria-label="Toggle light and dark theme" title="Toggle light and dark theme"><span aria-hidden="true">◐</span><span className="theme-toggle-label">Theme</span></button><span className="live-dot" /> Synthetic data <span className="top-divider" /><button className="help-button" aria-label="Help">?</button></div></header>
         <section className="page-heading"><div><p className="eyebrow">SERVICE LANE</p><h1>Good morning, Jordan <span className="wave">✳</span></h1><p className="page-subtitle">Get ready for the next conversation. Start with a vehicle’s service history.</p></div><div className="date-chip"><span>◷</span> Demo appointments <strong>8</strong></div></section>
 
         <section className="lookup-card" aria-labelledby="lookup-title">
