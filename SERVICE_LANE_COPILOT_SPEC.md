@@ -19,7 +19,7 @@ This MVP uses synthetic vehicles, service histories, and clearly labeled example
 
 ## MCP interface
 
-Expose the synthetic dataset to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the same validated read-only data loader as the REST API.
+Expose the synthetic dataset to any MCP-compatible agent harness through standard MCP transports. The MCP tools and resources share the validated synthetic data loader with REST. MCP remains read-only; the REST API has one advisor-reviewed synthetic mileage write route.
 
 - Tools: search records, get one vehicle record, prepare customer drafts, prepare record-intake/outside-history drafts, and summarize the dataset.
 - Resources: a demo safety guide and individual synthetic vehicle records.
@@ -136,6 +136,7 @@ Before calling the MVP ready, automate these behaviors where practical and recor
 12. Multi-step search/retrieve/draft tasks use MCP results; unknown or incomplete records remain explicit and uncertain.
 13. Ollama unavailable, no installed model, invalid tool, and MCP tool failure produce clear errors without making external calls.
 14. Chat cannot send drafts, write a vehicle record, book service, or control a vehicle; history is not persisted server-side.
+15. Manual mileage can replace the current value with date and source for a known serial; invalid/future values are rejected, unknown serials return 404, and conflicting/incomplete evidence keeps recommendations paused.
 
 Review the code changes and evidence for each check before accepting them. A check that was not run is **unverified**, not passed. The existing verification plan defines expected behavior; it is not evidence that implementation has already passed.
 
