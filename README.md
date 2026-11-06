@@ -22,7 +22,7 @@ Open `http://localhost:3000`. All data is synthetic demo data; nothing is sent t
 | **AI suggestions** | **✦ Suggest more with local AI**: up to three unverified extra items based on mileage and history; items with prices, without history evidence, or done too recently are removed. |
 | **Ask Copilot (chat)** | Ask dealership-service questions about records (general questions are refused). The assistant can propose record changes; each appears as a card and is saved only when you click **Apply change**. |
 | **Settings** | **AI model** for every AI feature, **Appearance** (Light, Dark, System), and **Time zone** for times of day (change log, telemetry), saved in this browser; **Maintenance rules** (miles since last service → Coming up / Due, safety items), stored in the database for everyone. |
-| **Layout** | ☰ in the top bar hides or shows the sidebar on desktop (remembered in this browser). |
+| **Layout** | ☰ in the top bar hides or shows the sidebar on desktop (remembered in this browser). **···** beside the advisor name opens a menu with **Settings**. |
 | **MCP** | Local MCP endpoint for agent tools: read, draft, and validated write tools (see below). |
 
 ## Architecture at a glance
@@ -116,6 +116,7 @@ service-lane-copilot/
         ├── page.tsx                  # Main advisor screen
         ├── chat-panel.tsx             # Advisor chat using local Ollama and MCP
         ├── ai-model.ts               # App-wide AI model choice (Settings) shared by all AI features
+        ├── profile-menu.tsx          # Sidebar ··· menu (Settings)
         ├── display-prefs.ts          # Theme and time-zone preferences (Settings)
         ├── rules-settings.tsx        # Settings → Maintenance rules editor
         ├── telemetry-panel.tsx       # Scrollable simulated OBD-II telemetry panel
@@ -184,6 +185,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/app/telemetry-panel.tsx` | Telemetry panel: shared time window, zoom, scroll, hover crosshair, window stats, stored-sample fallback. |
 | `frontend/app/rules-settings.tsx` | Settings → Maintenance rules: rules table, add/edit/disable, per-rule change history, setup notice. |
 | `frontend/app/display-prefs.ts` | Theme (Light/Dark/System) and time-zone preferences saved in the browser, plus helpers that format times in the chosen zone. |
+| `frontend/app/profile-menu.tsx` | `ProfileMenu`: the ··· button beside the advisor name and its menu (Settings); closes on Escape, outside click, or choice. |
 | `frontend/app/ai-model.ts` | `useAiModel()` hook: installed local chat models and the app-wide model chosen in Settings (saved in the browser). |
 | `frontend/app/chat-panel.tsx` | In-app assistant conversation, local model selection, and MCP tool usage display. |
 | `frontend/app/icon.svg` | Service Lane Copilot favicon for browser tabs. |

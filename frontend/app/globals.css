@@ -366,3 +366,6 @@ html[data-theme="dark"] .rec-safety-note{color:#e5b366}
 .pager-buttons{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 html[data-theme="dark"] .page-size select{background:#202c26;border-color:#34453a;color:#d8e3dd}
 @media(max-width:760px){.records-pager{flex-direction:column;align-items:stretch}.pager-buttons{justify-content:space-between}}
+/* Profile menu (issue #59) */
+.profile-menu-wrap{margin-left:auto;position:relative}.profile-menu-button{border:0;background:none;border-radius:6px;padding:0 6px;line-height:24px;height:26px}.profile-menu-button:hover,.profile-menu-button[aria-expanded="true"]{background:var(--green-pale);color:var(--green-dark)}.profile-menu{position:absolute;right:0;bottom:calc(100% + 8px);min-width:170px;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 24px rgba(20,40,30,.14);padding:5px;z-index:10}.profile-menu-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;text-decoration:none;color:#46514d;font-size:14px;font-weight:600}.profile-menu-item:hover,.profile-menu-item:focus-visible{background:var(--green-pale);color:var(--green-dark);outline:none}
+html[data-theme="dark"] .profile-menu{background:var(--paper);border-color:var(--line)}html[data-theme="dark"] .profile-menu-item{color:var(--ink)}
