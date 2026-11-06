@@ -5,6 +5,7 @@ import ChatPanel, { RECORD_CHANGED_EVENT } from "./chat-panel";
 import { useAiModel } from "./ai-model";
 import { browserTimeZone, formatDateTime, formatTimeOfDay, supportedTimeZones, useThemePref, useTimeZone, type ThemePref } from "./display-prefs";
 import { MaintenanceRulesPanel } from "./rules-settings";
+import { ProfileMenu } from "./profile-menu";
 import { TelemetryPanel } from "./telemetry-panel";
 import { AddVehicleForm, ChangeLog, HistoryRows, VehicleDetailsForm, useRecommendationEditor, type ChangeLogEntry } from "./record-editors";
 
@@ -723,7 +724,7 @@ export default function Home() {
         <div className="dealer-switcher"><span className="dealer-icon">N</span><span className="dealer-copy"><strong>Northside Motors</strong><small>Service department</small></span><span className="chevron">⌄</span></div>
         <p className="nav-label">WORKSPACE</p>
         <nav aria-label="Main navigation"><a className={`nav-item ${view === "lane" ? "active" : ""}`} href="#lane" aria-current={view === "lane" ? "page" : undefined}><span className="nav-icon">⌕</span> Service lane</a><a className={`nav-item ${view === "records" ? "active" : ""}`} href="#records" aria-current={view === "records" ? "page" : undefined}><span className="nav-icon">▤</span> Vehicle records</a><a className={`nav-item ${view === "settings" ? "active" : ""}`} href="#settings" aria-current={view === "settings" ? "page" : undefined}><span className="nav-icon">⚙</span> Settings</a></nav>
-        <div className="sidebar-bottom"><div className="advisor-profile"><span className="avatar">JD</span><span><strong>Jordan Davis</strong><small>Service advisor</small></span><span className="more">···</span></div></div>
+        <div className="sidebar-bottom"><div className="advisor-profile"><span className="avatar">JD</span><span><strong>Jordan Davis</strong><small>Service advisor</small></span><ProfileMenu /></div></div>
       </aside>
 
       <main id="main" className="main-content">
