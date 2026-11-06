@@ -9,3 +9,6 @@ backend/app/__pycache__/
 *.py[cod]
 .env
 .env.local
+
+# Installer run state (scripts/install.sh): logs and process ids
+.run/
