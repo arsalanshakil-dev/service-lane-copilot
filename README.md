@@ -22,7 +22,7 @@ Open `http://localhost:3000`. All data is synthetic demo data; nothing is sent t
 | **AI suggestions** | **✦ Suggest more with local AI**: up to three unverified extra items based on mileage and history; items with prices, without history evidence, or done too recently are removed. |
 | **Ask Copilot (chat)** | Ask dealership-service questions about records (general questions are refused). The assistant can propose record changes; each appears as a card and is saved only when you click **Apply change**. |
 | **Settings** | **AI model** for every AI feature, **Appearance** (Light, Dark, System), and **Time zone** for times of day (change log, telemetry), saved in this browser; **Maintenance rules** (miles since last service → Coming up / Due, safety items), stored in the database for everyone. |
-| **Layout** | ☰ in the top bar hides or shows the sidebar on desktop (remembered in this browser). **···** beside the advisor name opens a menu with **Settings**. |
+| **Layout** | ☰ in the top bar hides or shows the sidebar on desktop (remembered in this browser). **···** beside the advisor name opens a menu with **Settings** (the only way to Settings on desktop; phones use ⚙ in the top bar). |
 | **MCP** | Local MCP endpoint for agent tools: read, draft, and validated write tools (see below). |
 
 ## Architecture at a glance
