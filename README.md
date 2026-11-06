@@ -67,6 +67,8 @@ service-lane-copilot/
 │   ├── config.toml                   # Local Supabase project configuration
 │   └── migrations/                   # Postgres schema, RLS, and grants (vehicle_records, service_rules)
 ├── docs/
+│   ├── guide/
+│   │   └── TESTER_GUIDE.md           # Short explainer, local setup, demo script, and test checklist for testers
 │   ├── spec/                         # Feature specs (one file per feature) and the template
 │   │   ├── feature-spec-template.md          # Template for a new feature spec
 │   │   ├── feature-spec-manual-mileage.md    # Mileage replacement scope and evidence limits
@@ -192,6 +194,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/app/globals.css` | App-wide styles. |
 | `frontend/tsconfig.json` | TypeScript compiler configuration used by Next.js. |
 | `frontend/next-env.d.ts` | Next.js generated TypeScript environment declarations. |
+| `docs/guide/TESTER_GUIDE.md` | Guide to hand to testers: what the app is, how to run it locally, a five-minute demo script, a test checklist, and known limits. |
 | `docs/spec/feature-spec-template.md` | Template for specifying a distinct feature before implementation. |
 | `docs/links.txt` | Project reference links. |
 | `docs/AI_Agent_Project_Guide_Local_and_Free_Models.pdf` | Supporting project reference material. |
