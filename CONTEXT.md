@@ -40,6 +40,7 @@ No match or incomplete, stale, or contradictory data must remain visible as unce
 
 ## Which document governs what
 
+- [`docs/guide/TESTER_GUIDE.md`](docs/guide/TESTER_GUIDE.md) is the guide to give testers: a short explanation, local setup, a five-minute demo script, and a test checklist.
 - [`SERVICE_LANE_COPILOT_SPEC.md`](SERVICE_LANE_COPILOT_SPEC.md) is the **authoritative product requirements and acceptance criteria**. Change it first when product behavior or scope changes. Feature specs in `docs/` (for example [`docs/spec/feature-spec-local-ai-assist.md`](docs/spec/feature-spec-local-ai-assist.md)) hold the detailed rules for individual features.
 - [`AGENTS.md`](AGENTS.md) defines the coding workflow and safety rules, including keeping the spec, `MEMORY.md`, and this file current with every new requirement and change. [`CLAUDE.md`](CLAUDE.md) imports it so Claude Code follows the same rules.
 - [`MEMORY.md`](MEMORY.md) is a short, verified implementation status and known-gaps summary. It is not a requirements source.
