@@ -63,6 +63,9 @@ service-lane-copilot/
 ├── SERVICE_LANE_COPILOT_SPEC.md      # Requirements and acceptance criteria
 ├── data/
 │   └── vehicles.json                 # 1,000 synthetic seed fixture records
+├── scripts/
+│   ├── install-windows.ps1           # One-command install and start for testers (Windows)
+│   └── install.sh                    # One-command install, start and stop for testers (macOS, Linux)
 ├── supabase/
 │   ├── config.toml                   # Local Supabase project configuration
 │   └── migrations/                   # Postgres schema, RLS, and grants (vehicle_records, service_rules)
@@ -194,6 +197,7 @@ The tree shows the main source files and intentionally omits generated folders s
 | `frontend/app/globals.css` | App-wide styles. |
 | `frontend/tsconfig.json` | TypeScript compiler configuration used by Next.js. |
 | `frontend/next-env.d.ts` | Next.js generated TypeScript environment declarations. |
+| `scripts/install-windows.ps1`, `scripts/install.sh` | Tester installers: prerequisites, clone, venv, Supabase keys into `backend/.env`, Ollama models, web build, start on 127.0.0.1; re-run to start, `--stop`/`--update` on macOS/Linux. |
 | `docs/guide/TESTER_GUIDE.md` | Guide to hand to testers: what the app is, how to run it locally, a five-minute demo script, a test checklist, and known limits. |
 | `docs/spec/feature-spec-template.md` | Template for specifying a distinct feature before implementation. |
 | `docs/links.txt` | Project reference links. |
@@ -240,6 +244,18 @@ Recommendations are computed from editable demo rules stored in `public.service_
 3. Reload the app. Settings → **Maintenance rules** lists the rules; vehicles now show rule-computed Due / Coming up items.
 
 With the Supabase CLI, `supabase db push` applies the same migration. Rules are demo values, not manufacturer schedules.
+
+## One-command install for testers
+
+`scripts/install-windows.ps1` (Windows) and `scripts/install.sh` (macOS, Linux) install and start the whole app. They check or install the prerequisites, clone the project, create the backend virtual environment, prompt for the Supabase URL and secret key (written only to `backend/.env`), pull `qwen3.5:4b` and `qwen3:1.7b`, build the web app, start both servers on 127.0.0.1 and open the browser. Re-running skips finished steps. Details and options are in [`docs/guide/TESTER_GUIDE.md`](docs/guide/TESTER_GUIDE.md).
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; & ([scriptblock]::Create((irm https://raw.githubusercontent.com/arsalanshakil-dev/service-lane-copilot/main/scripts/install-windows.ps1)))"
+```
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/arsalanshakil-dev/service-lane-copilot/main/scripts/install.sh)"
+```
 
 ## Run locally on Windows PowerShell
 

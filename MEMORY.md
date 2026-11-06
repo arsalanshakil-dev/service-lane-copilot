@@ -85,6 +85,7 @@ Open `http://localhost:3000`. For stdio MCP hosts, launch `<backend>/.venv/Scrip
 - Numeric success targets are open until advisor baseline measures are captured.
 - Agent instructions (issue #25): root `CLAUDE.md` imports `@AGENTS.md`, so Claude Code and other agents share one rule set; `AGENTS.md` now requires updating the spec/feature spec, `MEMORY.md`, and `CONTEXT.md` with each new requirement and change in the same PR. `frontend/AGENTS.md` is separate Next.js-generated guidance.
 - Tester guide (issue #65): `docs/guide/TESTER_GUIDE.md` covers local setup (two servers + Ollama + Supabase credentials shared privately), a five-minute demo script, a 14-item checklist, and limits. A Docker-based version stays on the shelved `feature/58-docker-image` branch (#58); update the guide's Install section if that work returns.
+- Tester installers (issue #67): `scripts/install-windows.ps1` and `scripts/install.sh` (one-line commands in the README and tester guide fetch them from `main` on raw.githubusercontent.com, so they only work after merge). Idempotent via marker files (`.venv/.requirements-sha256`, `node_modules/.package-lock-sha256`, `.next/.built-from`); production `next start -H 127.0.0.1`. Verified 2026-11-06 on Windows: fresh clone, `-NoStart` run exit 0 (Python 3.14, Node 20.20), then `next start` on 3200 served the page and proxied `/api/copilot/health` (1,000 records). install.sh passed `bash -n` only; not yet run on macOS or Linux.
 
 ## Update rule
 

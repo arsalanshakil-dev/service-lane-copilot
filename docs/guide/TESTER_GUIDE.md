@@ -22,7 +22,44 @@ The app and its AI models run on your own computer; the AI runs locally through 
 
 ## Install and run
 
-The app runs as two local servers, a Python API and a Next.js web app, plus Ollama for the AI. Full details are in the [README](../../README.md); this is the short version for Windows PowerShell.
+The app runs as two local servers, a Python API and a Next.js web app, plus Ollama for the AI.
+
+### One-command install (recommended)
+
+Run one line in a terminal. The script checks for Git, Python, Node.js and Ollama and offers to install any that are missing. It then downloads the project to `service-lane-copilot` in your home folder, sets everything up, downloads the two AI models (a few GB), starts the app and opens the browser. It asks once for the Supabase URL and secret key; ask the project owner for these privately.
+
+**Windows** (PowerShell or Command Prompt):
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; & ([scriptblock]::Create((irm https://raw.githubusercontent.com/arsalanshakil-dev/service-lane-copilot/main/scripts/install-windows.ps1)))"
+```
+
+**macOS and Linux** (Terminal):
+
+```
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/arsalanshakil-dev/service-lane-copilot/main/scripts/install.sh)"
+```
+
+To start the app again later, run the same line. It skips the finished steps.
+
+After the first install, the script is in the project folder. Add an option to the command below to change what it does:
+
+- Windows (PowerShell): `powershell -ExecutionPolicy Bypass -File $HOME\service-lane-copilot\scripts\install-windows.ps1 <option>`
+- macOS / Linux: `bash ~/service-lane-copilot/scripts/install.sh <option>`
+
+| To do this | Windows option | macOS / Linux option |
+| --- | --- | --- |
+| Stop the app | Close the two "Service Lane Copilot" windows | `--stop` |
+| Get the latest version | `-Update` | `--update` |
+| Enter new database keys | `-ResetKeys` | `--reset-keys` |
+| Download only the smaller, faster model | `-SmallModelOnly` | `--small-model-only` |
+| Use another web port | `-WebPort 3001` | `--web-port 3001` |
+
+On macOS and Linux the server logs are in `~/service-lane-copilot/.run/`.
+
+### Manual install
+
+Full details are in the [README](../../README.md); this is the short version for Windows PowerShell.
 
 **What you need:**
 
